@@ -492,9 +492,6 @@ pm_idle_old = pm_idle;
 pm_idle = cpufreq_idle;
 
 this_smoothass->cur_policy = new_policy;
-this_smoothass->cur_policy->max = CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX;
-this_smoothass->cur_policy->min = CONFIG_MSM_CPU_FREQ_ONDEMAND_MIN;
-this_smoothass->cur_policy->cur = CONFIG_MSM_CPU_FREQ_ONDEMAND_MAX;
 this_smoothass->enable = 1;
 
 // notice no break here!
