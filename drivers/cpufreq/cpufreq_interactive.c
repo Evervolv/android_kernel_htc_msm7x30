@@ -666,7 +666,7 @@ static int __init cpufreq_interactive_init(void)
 
 	/* No rescuer thread, bind to CPU queuing the work for possibly
 	   warm cache (probably doesn't matter much). */
-	down_wq = create_workqueue("knteractive_down");
+	down_wq = alloc_workqueue("knteractive_down", 0, 1);
 
 	if (!down_wq)
 		goto err_freeuptask;
