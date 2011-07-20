@@ -538,10 +538,10 @@ CPUFREQ_RELATION_L);
 }
 }
 
-unsigned int max_load_freq;
+//unsigned int max_load_freq;
 
-struct cpufreq_policy *policy;
-unsigned int j;
+//struct cpufreq_policy *policy;
+//unsigned int j;
 
 this_dbs_info->freq_lo = 0;
 policy = this_dbs_info->cur_policy;
@@ -890,6 +890,4 @@ fs_initcall(cpufreq_gov_dbs_init);
 #else
 module_init(cpufreq_gov_dbs_init);
 #endif
-module_exit(cpufreq_gov_dbs_exit);
-
-
+module_exit(cpufreq_gov_dbs_exit);ss
