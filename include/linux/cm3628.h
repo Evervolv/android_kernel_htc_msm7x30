@@ -85,7 +85,7 @@
 /*for PS command 03h*/
 #define CM3628_PS_MS			(1 << 4)
 #define CM3628_PS_HYS			(1 << 0)
-#define CM3628_PS_SMART_PERS	(1 << 1)
+#define CM3628_PS_SMART_PERS		(1 << 1)
 #define CM3628_IT_4X_ES			(1 << 6)/*for integration time*/
 #define CM3628_IT_4X_MP			(1 << 7)/*for integration time*/
 
