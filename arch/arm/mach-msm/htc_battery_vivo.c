@@ -32,6 +32,8 @@
 #include <linux/rtc.h>
 #include <linux/workqueue.h>
 #include <linux/tps65200.h>
+#include <linux/wrapper_types.h>
+#include <linux/notifier.h>
 #ifdef CONFIG_HTC_BATTCHG_SMEM
 #include "smd_private.h"
 #endif
