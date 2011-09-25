@@ -43,10 +43,10 @@ static atomic_t aic3254_ctl = ATOMIC_INIT(0);
 
 static struct q5v2_hw_info q5v2_audio_hw[Q5V2_HW_COUNT] = {
 	[Q5V2_HW_HANDSET] = {
-		.max_gain[VOC_NB_INDEX] = 1000,
-		.min_gain[VOC_NB_INDEX] = -1600,
-		.max_gain[VOC_WB_INDEX] = 1000,
-		.min_gain[VOC_WB_INDEX] = -1600,
+		.max_gain[VOC_NB_INDEX] = 700,
+		.min_gain[VOC_NB_INDEX] = -1400,
+		.max_gain[VOC_WB_INDEX] = 700,
+		.min_gain[VOC_WB_INDEX] = -1400,
 	},
 	[Q5V2_HW_HEADSET] = {
 		.max_gain[VOC_NB_INDEX] = 1125,
@@ -55,10 +55,10 @@ static struct q5v2_hw_info q5v2_audio_hw[Q5V2_HW_COUNT] = {
 		.min_gain[VOC_WB_INDEX] = -1100,
 	},
 	[Q5V2_HW_SPEAKER] = {
-		.max_gain[VOC_NB_INDEX] = 1250,
-		.min_gain[VOC_NB_INDEX] = -500,
-		.max_gain[VOC_WB_INDEX] = 1250,
-		.min_gain[VOC_WB_INDEX] = -500,
+		.max_gain[VOC_NB_INDEX] = 500,
+		.min_gain[VOC_NB_INDEX] = -1000,
+		.max_gain[VOC_WB_INDEX] = 500,
+		.min_gain[VOC_WB_INDEX] = -1000,
 	},
 	[Q5V2_HW_BT_SCO] = {
 		.max_gain[VOC_NB_INDEX] = 800,
