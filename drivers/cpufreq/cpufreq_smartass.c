@@ -78,7 +78,7 @@ static unsigned int up_min_freq;
  * to minimize wakeup issues.
  * Set sleep_max_freq=0 to disable this behavior.
  */
-#define DEFAULT_SLEEP_MAX_FREQ 345600
+#define DEFAULT_SLEEP_MAX_FREQ 352000
 static unsigned int sleep_max_freq;
 
 /*
@@ -91,7 +91,7 @@ static unsigned int sample_rate_jiffies;
  * Freqeuncy delta when ramping up.
  * zero disables causes to always jump straight to max frequency.
  */
-#define DEFAULT_RAMP_UP_STEP 192000
+#define DEFAULT_RAMP_UP_STEP 256000
 static unsigned int ramp_up_step;
 
 /*
