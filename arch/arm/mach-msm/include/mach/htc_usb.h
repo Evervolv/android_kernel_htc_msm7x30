@@ -34,6 +34,12 @@ static char *usb_functions_adb[] = {
 	"adb",
 };
 
+#ifdef CONFIG_USB_ANDROID_ECM
+static char *usb_functions_ecm[] = {
+	"cdc_ethernet",
+};
+#endif
+#ifdef CONFIG_USB_ANDROID_RNDIS
 static char *usb_functions_rndis[] = {
 	"rndis",
 };
@@ -41,6 +47,18 @@ static char *usb_functions_rndis_adb[] = {
 	"rndis",
 	"adb",
 };
+#ifdef CONFIG_USB_ANDROID_DIAG
+static char *usb_functions_rndis_diag[] = {
+	"rndis",
+	"diag",
+};
+static char *usb_functions_rndis_adb_diag[] = {
+	"rndis",
+	"adb",
+	"diag",
+};
+#endif
+#endif
 
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
 static char *usb_functions_accessory[] = { "accessory" };
@@ -70,6 +88,66 @@ static char *usb_functions_adb_diag[] = {
 };
 #endif
 
+#ifdef CONFIG_USB_ANDROID_SERIAL
+static char *usb_functions_modem[] = {
+	"usb_mass_storage",
+	"modem",
+};
+static char *usb_functions_adb_modem[] = {
+	"usb_mass_storage",
+	"adb",
+	"modem",
+};
+#ifdef CONFIG_USB_ANDROID_DIAG
+static char *usb_functions_diag_modem[] = {
+	"usb_mass_storage",
+	"diag",
+	"modem",
+};
+static char *usb_functions_adb_diag_modem[] = {
+	"usb_mass_storage",
+	"adb",
+	"diag",
+	"modem",
+};
+static char *usb_functions_adb_diag_serial[] = {
+	"usb_mass_storage",
+	"adb",
+	"diag",
+	"serial",
+};
+static char *usb_functions_diag_serial[] = {
+	"usb_mass_storage",
+	"diag",
+	"serial",
+};
+static char *usb_functions_adb_diag_serial_modem[] = {
+	"usb_mass_storage",
+	"adb",
+	"diag",
+	"modem",
+	"serial",
+};
+static char *usb_functions_diag_serial_modem[] = {
+	"usb_mass_storage",
+	"diag",
+	"modem",
+	"serial",
+};
+#endif
+#endif
+
+#ifdef CONFIG_USB_ANDROID_ACM
+static char *usb_functions_adb_acm[] = {
+	"usb_mass_storage",
+	"adb",
+	"acm",
+};
+static char *usb_functions_acm[] = {
+	"acm",
+};
+#endif
+
 static char *usb_functions_all[] = {
 #ifdef CONFIG_USB_ANDROID_RNDIS
 	"rndis",
@@ -79,6 +157,18 @@ static char *usb_functions_all[] = {
 #endif
 	"usb_mass_storage",
 	"adb",
+#ifdef CONFIG_USB_ANDROID_ECM
+	"cdc_ethernet",
+#endif
+#ifdef CONFIG_USB_ANDROID_DIAG
+	"diag",
+#endif
+#ifdef CONFIG_USB_ANDROID_SERIAL
+	"serial",
+#endif
+#ifdef CONFIG_USB_ANDROID_PROJECTOR
+	"projector",
+#endif
 #ifdef CONFIG_USB_ANDROID_ACM
 	"acm",
 #endif
