@@ -1177,9 +1177,9 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 unsigned int cpu = sys_dev->id;
 unsigned long flags;
 struct cpufreq_policy *data;
-struct kobject *kobj;
 struct completion *cmp;
 #ifdef CONFIG_SMP
+struct kobject *kobj;
 struct sys_device *cpu_sys_dev;
 unsigned int j;
 #endif
