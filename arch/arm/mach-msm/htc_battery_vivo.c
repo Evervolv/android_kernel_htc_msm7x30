@@ -557,6 +557,7 @@ static int htc_cable_status_update(int status)
 	if ((htc_batt_info.guage_driver == GUAGE_MODEM) && (status == CHARGER_AC)) {
 		htc_set_smem_cable_type(CHARGER_AC);
 		power_supply_changed(&htc_power_supplies[CHARGER_AC]);
+#ifdef CONFIG_WIRELESS_CHARGER
 	} else {
 		if (status == CHARGER_WIRELESS) {
 			BATT_LOG("batt: Wireless charger detected. "
@@ -571,6 +572,11 @@ static int htc_cable_status_update(int status)
 			msm_hsusb_set_vbus_state(!!htc_batt_info.rep.charging_source);
 		}
 	}
+#else
+	} else
+	    msm_hsusb_set_vbus_state(!!htc_batt_info.rep.charging_source);
+#endif
+
 
 	/* TODO: use power_supply_change to notify battery drivers. */
 	if (htc_batt_info.guage_driver == GUAGE_DS2784 ||
