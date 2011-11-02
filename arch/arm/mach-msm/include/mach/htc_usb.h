@@ -199,6 +199,18 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
 		.functions	= usb_functions_rndis_adb,
 	},
+#ifdef CONFIG_USB_ANDROID_DIAG
+	{
+		.product_id	= 0x0ff6,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag),
+		.functions	= usb_functions_rndis_adb_diag,
+	},
+	{
+		.product_id	= 0x0ff7,
+		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag),
+		.functions	= usb_functions_rndis_diag,
+	},
+#endif
 #endif
 #ifdef CONFIG_USB_ANDROID_ACCESSORY
 	{
