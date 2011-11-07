@@ -285,6 +285,7 @@ static void locked_hw3d_revoke(struct hw3d_info *info)
 	mod_timer(&info->revoke_timer, jiffies + REVOKE_TIMEOUT);
 }
 
+#ifdef CONFIG_MSM_HW3D
 bool is_msm_hw3d_file(struct file *file)
 {
 	struct hw3d_info *info = hw3d_info;
@@ -356,6 +357,7 @@ err:
 	fput(file);
 	return ret;
 }
+#endif
 
 static int hw3d_flush(struct file *filp, fl_owner_t id)
 {
