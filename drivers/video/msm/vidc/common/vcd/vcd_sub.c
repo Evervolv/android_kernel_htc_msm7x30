@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1313,6 +1313,7 @@ u32 vcd_submit_frame(struct vcd_dev_ctxt *dev_ctxt,
 	transc->op_buf_entry = op_buf_entry;
 	transc->ip_frm_tag = ip_frm_entry->ip_frm_tag;
 	transc->time_stamp = ip_frm_entry->time_stamp;
+	transc->flags = ip_frm_entry->flags;
 	ip_frm_entry->ip_frm_tag = (u32) transc;
 	memset(&ddl_ip_frm, 0, sizeof(ddl_ip_frm));
 	memset(&ddl_op_frm, 0, sizeof(ddl_op_frm));
@@ -1773,6 +1774,7 @@ u32 vcd_handle_input_done_in_eos(
 	struct ddl_frame_data_tag *frame =
 		(struct ddl_frame_data_tag *) payload;
 	u32 rc = VCD_ERR_FAIL, codec_config = false;
+	u32 core_type = res_trk_get_core_type();
 	rc = vcd_validate_io_done_pyld(cctxt, payload, status);
 	if (rc == VCD_ERR_CLIENT_FATAL)
 		vcd_handle_clnt_fatal_input_done(cctxt, frame->frm_trans_end);
@@ -1787,8 +1789,9 @@ u32 vcd_handle_input_done_in_eos(
 		transc->input_done = false;
 		transc->in_use = true;
 		if (codec_config ||
-			(status == VCD_ERR_BITSTREAM_ERR &&
-			 !(cctxt->status.mask & VCD_FIRST_IP_DONE)))
+			((status == VCD_ERR_BITSTREAM_ERR) &&
+			 !(cctxt->status.mask & VCD_FIRST_IP_DONE) &&
+			 (core_type == VCD_CORE_720P)))
 			vcd_handle_eos_done(cctxt, transc, VCD_S_SUCCESS);
 	}
 	return rc;
@@ -1968,6 +1971,7 @@ u32 vcd_handle_frame_done(
 		(struct ddl_frame_data_tag *) payload;
 	struct vcd_transc *transc;
 	u32 rc;
+	s64 time_stamp;
 
 	rc = vcd_validate_io_done_pyld(cctxt, payload, status);
 	if (rc == VCD_ERR_CLIENT_FATAL)
@@ -2009,12 +2013,22 @@ u32 vcd_handle_frame_done(
 	VCD_FAILED_RETURN(rc, "Bad output buffer pointer");
 	op_frm->vcd_frm.time_stamp = transc->time_stamp;
 	op_frm->vcd_frm.ip_frm_tag = transc->ip_frm_tag;
-	op_frm->vcd_frm.frame = transc->frame;
 
+	if (transc->flags & VCD_FRAME_FLAG_EOSEQ)
+		op_frm->vcd_frm.flags |= VCD_FRAME_FLAG_EOSEQ;
+	else
+		op_frm->vcd_frm.flags &= ~VCD_FRAME_FLAG_EOSEQ;
+
+	if (cctxt->decoding)
+		op_frm->vcd_frm.frame = transc->frame;
+	else
+		transc->frame = op_frm->vcd_frm.frame;
 	transc->frame_done = true;
 
-	if (transc->input_done && transc->frame_done)
+	if (transc->input_done && transc->frame_done) {
+		time_stamp = transc->time_stamp;
 		vcd_release_trans_tbl_entry(transc);
+	}
 
 	if (status == VCD_ERR_INTRLCD_FIELD_DROP ||
 		(op_frm->vcd_frm.intrlcd_ip_frm_tag !=
@@ -2022,6 +2036,13 @@ u32 vcd_handle_frame_done(
 		op_frm->vcd_frm.intrlcd_ip_frm_tag)) {
 		vcd_handle_frame_done_for_interlacing(cctxt, transc,
 							  op_frm, status);
+		if (status == VCD_ERR_INTRLCD_FIELD_DROP) {
+			cctxt->callback(VCD_EVT_IND_INFO_FIELD_DROPPED,
+				VCD_S_SUCCESS,
+				&time_stamp,
+				sizeof(time_stamp),
+				cctxt, cctxt->client_data);
+		}
 	}
 
 	if (status != VCD_ERR_INTRLCD_FIELD_DROP) {
@@ -2082,10 +2103,8 @@ void vcd_handle_frame_done_for_interlacing(
 	if (transc_ip2->input_done && transc_ip2->frame_done)
 		vcd_release_trans_tbl_entry(transc_ip2);
 
-	if (!transc_ip1->frame ||
-			!transc_ip2->frame) {
+	if (!transc_ip1->frame || !transc_ip2->frame) {
 		VCD_MSG_ERROR("DDL didn't provided frame type");
-
 		return;
 	}
 }
@@ -2096,15 +2115,6 @@ u32 vcd_handle_first_fill_output_buffer(
 	u32 *handled)
 {
 	u32 rc = VCD_S_SUCCESS;
-	if (cctxt->status.mask & VCD_IN_RECONFIG) {
-		cctxt->callback(VCD_EVT_RESP_OUTPUT_DONE,
-			VCD_S_SUCCESS,
-			buffer,
-			sizeof(struct vcd_frame_data),
-			cctxt, cctxt->client_data);
-		*handled = true;
-		return rc;
-	}
 	rc = vcd_check_if_buffer_req_met(cctxt, VCD_BUFFER_OUTPUT);
 	VCD_FAILED_RETURN(rc, "Output buffer requirements not met");
 	if (cctxt->out_buf_pool.q_len > 0) {
@@ -2735,8 +2745,7 @@ u32 vcd_calculate_frame_delta(
 	 struct vcd_frame_data *frame)
 {
 	u32 frm_delta;
-	u64 temp, temp1;
-	u64 max = ~((u64)0);
+	u64 temp, max = ~((u64)0);
 
 	if (frame->time_stamp >= cctxt->status.prev_ts)
 		temp = frame->time_stamp - cctxt->status.prev_ts;
@@ -2747,22 +2756,17 @@ u32 vcd_calculate_frame_delta(
 	VCD_MSG_LOW("Curr_ts=%lld  Prev_ts=%lld Diff=%llu",
 			frame->time_stamp, cctxt->status.prev_ts, temp);
 
-	temp = temp * cctxt->time_resoln;
-	temp = (temp + (VCD_TIMESTAMP_RESOLUTION >> 1));
-	temp1 = do_div(temp, VCD_TIMESTAMP_RESOLUTION);
+	temp *= cctxt->time_resoln;
+	(void)do_div(temp, VCD_TIMESTAMP_RESOLUTION);
 	frm_delta = temp;
-	VCD_MSG_LOW("temp1=%lld  temp=%lld", temp1, temp);
 	cctxt->status.time_elapsed += frm_delta;
 
-	temp = ((u64)cctxt->status.time_elapsed \
-			  * VCD_TIMESTAMP_RESOLUTION);
-	temp = (temp + (cctxt->time_resoln >> 1));
-	temp1 = do_div(temp, cctxt->time_resoln);
-
+	temp = (cctxt->status.time_elapsed * VCD_TIMESTAMP_RESOLUTION);
+	(void)do_div(temp, cctxt->time_resoln);
 	cctxt->status.prev_ts = cctxt->status.first_ts + temp;
 
-	VCD_MSG_LOW("Time_elapsed=%u, Drift=%llu, new Prev_ts=%lld",
-			cctxt->status.time_elapsed, temp1,
+	VCD_MSG_LOW("Time_elapsed=%llu, Drift=%llu, new Prev_ts=%lld",
+			cctxt->status.time_elapsed, temp,
 			cctxt->status.prev_ts);
 
 	return frm_delta;
@@ -2799,8 +2803,9 @@ struct vcd_buffer_entry *vcd_check_fill_output_buffer
 		return NULL;
 	}
 
-	if (buffer->alloc_len < buf_pool->buf_req.sz ||
-		buffer->alloc_len > buf_entry->sz) {
+	if ((buffer->alloc_len < buf_pool->buf_req.sz ||
+		 buffer->alloc_len > buf_entry->sz) &&
+		 !(cctxt->status.mask & VCD_IN_RECONFIG)) {
 		VCD_MSG_ERROR
 			("Bad buffer Alloc_len = %d, Actual sz = %d, "
 			 " Min sz = %u",
@@ -3050,4 +3055,13 @@ void vcd_handle_clnt_fatal_input_done(struct vcd_clnt_ctxt *cctxt,
 	if (cctxt->status.frame_submitted > 0)
 		cctxt->status.frame_submitted--;
 	vcd_handle_clnt_fatal(cctxt, trans_end);
+}
+
+void vcd_handle_ind_info_output_reconfig(
+	struct vcd_clnt_ctxt *cctxt, u32 status)
+{
+	if (cctxt) {
+		cctxt->callback(VCD_EVT_IND_INFO_OUTPUT_RECONFIG, status, NULL,
+		 0, cctxt, cctxt->client_data);
+	}
 }
