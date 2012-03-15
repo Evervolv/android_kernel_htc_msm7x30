@@ -96,21 +96,19 @@ static struct cpufreq_frequency_table freq_table[] = {
         { 1, 368640 },
         { 2, 768000 },
         { 3, 806400 },
-        { 4, 1113600 },
+        { 4, 1024000 },
         { 5, 1209600 },
-        { 6, 1305600 },
-        { 7, 1401600 },
-        { 8, 1497600 },
-        { 9, 1516800 },
+        { 6, 1401600 },
+        { 7, 1516800 },
 #ifndef CONFIG_JESUS_PHONE
-        { 10, CPUFREQ_TABLE_END },
+        { 8, CPUFREQ_TABLE_END },
 #else
         /* Just an example of some of the insanity I was able to pull off on my
            device */
-        { 10, 1612800 },
-        { 11, 1708800 },
-        { 12, 1804800 },
-        { 13, CPUFREQ_TABLE_END },
+        { 8, 1612800 },
+        { 9, 1708800 },
+        { 10, 1804800 },
+        { 11, CPUFREQ_TABLE_END },
 #endif
 #else
 	{ 0, 245760 },
@@ -142,11 +140,9 @@ static struct clkctl_acpu_speed acpu_freq_tbl[] = {
            Voltage tables are being very conservative and are not designed to
            be an undervolt of any sort. */
         { 806400, PLL_2,    3, 0,  192000000, 1100, VDD_RAW(1100) },
-        { 1113600, PLL_2,   3, 0,  192000000, 1200, VDD_RAW(1200) },
+        { 1024000, PLL_2,   3, 0,  192000000, 1200, VDD_RAW(1200) },
         { 1209600, PLL_2,   3, 0,  192000000, 1200, VDD_RAW(1200) },
-        { 1305600, PLL_2,   3, 0,  192000000, 1200, VDD_RAW(1200) },
         { 1401600, PLL_2,   3, 0,  192000000, 1250, VDD_RAW(1250) },
-        { 1497600, PLL_2,   3, 0,  192000000, 1300, VDD_RAW(1300) },
         { 1516800, PLL_2,   3, 0,  192000000, 1300, VDD_RAW(1300) },
 #ifdef CONFIG_JESUS_PHONE
         { 1612800, PLL_2,   3, 0,  192000000, 1400, VDD_RAW(1400) },
