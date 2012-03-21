@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,6 +15,7 @@
 
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
+#include <linux/vmalloc.h>
 #include "kgsl_mmu.h"
 
 struct kgsl_device;
@@ -45,6 +46,14 @@ int kgsl_sharedmem_vmalloc_user(struct kgsl_memdesc *memdesc,
 
 int kgsl_sharedmem_alloc_coherent(struct kgsl_memdesc *memdesc, size_t size);
 
+int kgsl_sharedmem_ebimem_user(struct kgsl_memdesc *memdesc,
+			     struct kgsl_pagetable *pagetable,
+			     size_t size, int flags);
+
+int kgsl_sharedmem_ebimem(struct kgsl_memdesc *memdesc,
+			struct kgsl_pagetable *pagetable,
+			size_t size);
+
 void kgsl_sharedmem_free(struct kgsl_memdesc *memdesc);
 
 int kgsl_sharedmem_readl(const struct kgsl_memdesc *memdesc,
@@ -73,7 +82,7 @@ memdesc_sg_phys(struct kgsl_memdesc *memdesc,
 {
 	struct page *page = phys_to_page(physaddr);
 
-	memdesc->sg = kmalloc(sizeof(struct scatterlist) * 1, GFP_KERNEL);
+	memdesc->sg = vmalloc(sizeof(struct scatterlist) * 1);
 	if (memdesc->sg == NULL)
 		return -ENOMEM;
 
@@ -87,6 +96,8 @@ static inline int
 kgsl_allocate(struct kgsl_memdesc *memdesc,
 		struct kgsl_pagetable *pagetable, size_t size)
 {
+	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE)
+		return kgsl_sharedmem_ebimem(memdesc, pagetable, size);
 	return kgsl_sharedmem_vmalloc(memdesc, pagetable, size);
 }
 
@@ -95,6 +106,9 @@ kgsl_allocate_user(struct kgsl_memdesc *memdesc,
 		struct kgsl_pagetable *pagetable,
 		size_t size, unsigned int flags)
 {
+	if (kgsl_mmu_get_mmutype() == KGSL_MMU_TYPE_NONE)
+		return kgsl_sharedmem_ebimem_user(memdesc, pagetable, size,
+						  flags);
 	return kgsl_sharedmem_vmalloc_user(memdesc, pagetable, size, flags);
 }
 

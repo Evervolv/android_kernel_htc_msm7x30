@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -202,7 +202,7 @@ static irqreturn_t adreno_isr(int irq, void *data)
 	}
 
 	/* Reset the time-out in our idle timer */
-	mod_timer(&device->idle_timer,
+	mod_timer_pending(&device->idle_timer,
 		jiffies + device->pwrctrl.interval_timeout);
 	return result;
 }
@@ -585,6 +585,7 @@ static int adreno_start(struct kgsl_device *device, unsigned int init_ram)
 	adreno_gmeminit(adreno_dev);
 
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_ON);
+	device->ftbl->irqctrl(device, 1);
 
 	status = adreno_ringbuffer_start(&adreno_dev->ringbuffer, init_ram);
 	if (status != 0)
@@ -612,6 +613,7 @@ static int adreno_stop(struct kgsl_device *device)
 
 	kgsl_mmu_stop(device);
 
+	device->ftbl->irqctrl(device, 0);
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
 	del_timer_sync(&device->idle_timer);
 
@@ -728,8 +730,21 @@ adreno_dump_and_recover(struct kgsl_device *device)
 	} else {
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_DUMP_AND_RECOVER);
 		INIT_COMPLETION(device->recovery_gate);
-		/* Detected a hang - trigger an automatic dump */
+		/* Detected a hang */
+
+
+		/*
+		 * Trigger an automatic dump of the state to
+		 * the console
+		 */
 		adreno_postmortem_dump(device, 0);
+
+		/*
+		 * Make a GPU snapshot.  For now, do it after the PM dump so we
+		 * can at least be sure the PM dump will work as it always has
+		 */
+		kgsl_device_snapshot(device, 1);
+
 		result = adreno_recover_hang(device);
 		if (result)
 			kgsl_pwrctrl_set_state(device, KGSL_STATE_HUNG);
@@ -863,8 +878,8 @@ int adreno_idle(struct kgsl_device *device, unsigned int timeout)
 	 */
 retry:
 	if (rb->flags & KGSL_FLAGS_STARTED) {
+		adreno_poke(device);
 		do {
-			adreno_poke(device);
 			GSL_RB_GET_READPTR(rb, &rb->rptr);
 			if (time_after(jiffies, wait_time)) {
 				KGSL_DRV_ERR(device, "rptr: %x, wptr: %x\n",
@@ -898,8 +913,9 @@ static unsigned int adreno_isidle(struct kgsl_device *device)
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
 	unsigned int rbbm_status;
 
-	WARN_ON(!(rb->flags & KGSL_FLAGS_STARTED));
-	if (rb->flags & KGSL_FLAGS_STARTED) {
+	WARN_ON(device->state == KGSL_STATE_INIT);
+	/* If the device isn't active, don't force it on. */
+	if (device->state == KGSL_STATE_ACTIVE) {
 		/* Is the ring buffer is empty? */
 		GSL_RB_GET_READPTR(rb, &rb->rptr);
 		if (!device->active_cnt && (rb->rptr == rb->wptr)) {
@@ -910,7 +926,6 @@ static unsigned int adreno_isidle(struct kgsl_device *device)
 				status = true;
 		}
 	} else {
-		/* if the ringbuffer isn't started we are VERY idle */
 		status = true;
 	}
 	return status;
@@ -958,8 +973,7 @@ const struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 		if (!kgsl_mmu_pt_equal(priv->pagetable, pt_base))
 			continue;
 		spin_lock(&priv->mem_lock);
-		entry = kgsl_sharedmem_find_region(priv, gpuaddr,
-						sizeof(unsigned int));
+		entry = kgsl_sharedmem_find_region(priv, gpuaddr, size);
 		if (entry) {
 			result = &entry->memdesc;
 			spin_unlock(&priv->mem_lock);
@@ -969,15 +983,6 @@ const struct kgsl_memdesc *adreno_find_region(struct kgsl_device *device,
 		spin_unlock(&priv->mem_lock);
 	}
 	mutex_unlock(&kgsl_driver.process_mutex);
-
-	BUG_ON(!mutex_is_locked(&device->mutex));
-	list_for_each_entry(entry, &device->memqueue, list) {
-		if (kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size)) {
-			result = &entry->memdesc;
-			return result;
-		}
-
-	}
 
 	while (1) {
 		struct adreno_context *adreno_context = NULL;
@@ -1094,7 +1099,8 @@ static int kgsl_check_interrupt_timestamp(struct kgsl_device *device,
 			* get an interrupt */
 			cmds[0] = cp_type3_packet(CP_NOP, 1);
 			cmds[1] = 0;
-			adreno_ringbuffer_issuecmds(device, 0, &cmds[0], 2);
+			adreno_ringbuffer_issuecmds(device, KGSL_CMD_FLAGS_NONE,
+				&cmds[0], 2);
 		}
 		mutex_unlock(&device->mutex);
 	}
@@ -1151,57 +1157,56 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 	msecs_first = (msecs <= 100) ? ((msecs + 4) / 5) : 100;
 	msecs_part = (msecs - msecs_first + 3) / 4;
 	for (retries = 0; retries < 5; retries++) {
-		if (!kgsl_check_timestamp(device, timestamp)) {
-			adreno_poke(device);
-			io_cnt = (io_cnt + 1) % 100;
-			if (io_cnt <
-				pwr->pwrlevels[pwr->active_pwrlevel].
-					io_fraction)
-				io = 0;
-			mutex_unlock(&device->mutex);
-			/* We need to make sure that the process is
-			 * placed in wait-q before its condition is called
+		if (kgsl_check_timestamp(device, timestamp)) {
+			/* if the timestamp happens while we're not
+			 * waiting, there's a chance that an interrupt
+			 * will not be generated and thus the timestamp
+			 * work needs to be queued.
 			 */
-			status = kgsl_wait_event_interruptible_timeout(
-					device->wait_queue,
-					kgsl_check_interrupt_timestamp(device,
-						timestamp),
-					msecs_to_jiffies(retries ?
-						msecs_part : msecs_first), io);
-			mutex_lock(&device->mutex);
-
-			if (status > 0) {
-				/*completed before the wait finished */
-				status = 0;
-				goto done;
-			} else if (status < 0) {
-				/*an error occurred*/
-				goto done;
-			}
-			/*this wait timed out*/
+			queue_work(device->work_queue, &device->ts_expired_ws);
+			status = 0;
+			goto done;
 		}
-	}
-	if (!kgsl_check_timestamp(device, timestamp)) {
-		status = -ETIMEDOUT;
-		KGSL_DRV_ERR(device,
-			"Device hang detected while waiting "
-			"for timestamp: %x, last "
-			"submitted(rb->timestamp): %x, wptr: "
-			"%x\n", timestamp,
-			adreno_dev->ringbuffer.timestamp,
-			adreno_dev->ringbuffer.wptr);
-		if (!adreno_dump_and_recover(device)) {
-			/* wait for idle after recovery as the
-			 * timestamp that this process wanted
-			 * to wait on may be invalid */
-			if (!adreno_idle(device,
-				KGSL_TIMEOUT_DEFAULT))
-				status = 0;
-		}
-	} else {
-		status = 0;
-	}
+		adreno_poke(device);
+		io_cnt = (io_cnt + 1) % 100;
+		if (io_cnt <
+		    pwr->pwrlevels[pwr->active_pwrlevel].io_fraction)
+			io = 0;
+		mutex_unlock(&device->mutex);
+		/* We need to make sure that the process is
+		 * placed in wait-q before its condition is called
+		 */
+		status = kgsl_wait_event_interruptible_timeout(
+				device->wait_queue,
+				kgsl_check_interrupt_timestamp(device,
+					timestamp),
+				msecs_to_jiffies(retries ?
+					msecs_part : msecs_first), io);
+		mutex_lock(&device->mutex);
 
+		if (status > 0) {
+			/*completed before the wait finished */
+			status = 0;
+			goto done;
+		} else if (status < 0) {
+			/*an error occurred*/
+			goto done;
+		}
+		/*this wait timed out*/
+	}
+	status = -ETIMEDOUT;
+	KGSL_DRV_ERR(device,
+		     "Device hang detected while waiting for timestamp: %x,"
+		      "last submitted(rb->timestamp): %x, wptr: %x\n",
+		      timestamp, adreno_dev->ringbuffer.timestamp,
+		      adreno_dev->ringbuffer.wptr);
+	if (!adreno_dump_and_recover(device)) {
+		/* wait for idle after recovery as the
+		 * timestamp that this process wanted
+		 * to wait on may be invalid */
+		if (!adreno_idle(device, KGSL_TIMEOUT_DEFAULT))
+			status = 0;
+	}
 done:
 	return (int)status;
 }
@@ -1341,6 +1346,7 @@ static const struct kgsl_functable adreno_functable = {
 	.power_stats = adreno_power_stats,
 	.irqctrl = adreno_irqctrl,
 	.gpuid = adreno_gpuid,
+	.snapshot = adreno_snapshot,
 	/* Optional functions */
 	.setstate = adreno_setstate,
 	.drawctxt_create = adreno_drawctxt_create,

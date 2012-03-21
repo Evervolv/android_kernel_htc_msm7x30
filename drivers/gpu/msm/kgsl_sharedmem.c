@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -11,6 +11,7 @@
  *
  */
 #include <linux/vmalloc.h>
+#include <linux/memory_alloc.h>
 #include <asm/cacheflush.h>
 
 #include "kgsl.h"
@@ -323,6 +324,42 @@ static void kgsl_vmalloc_free(struct kgsl_memdesc *memdesc)
 	vfree(memdesc->hostptr);
 }
 
+static int kgsl_contiguous_vmflags(struct kgsl_memdesc *memdesc)
+{
+	return VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
+}
+
+static int kgsl_contiguous_vmfault(struct kgsl_memdesc *memdesc,
+				struct vm_area_struct *vma,
+				struct vm_fault *vmf)
+{
+	unsigned long offset, pfn;
+	int ret;
+
+	offset = ((unsigned long) vmf->virtual_address - vma->vm_start) >>
+		PAGE_SHIFT;
+
+	pfn = (memdesc->physaddr >> PAGE_SHIFT) + offset;
+	ret = vm_insert_pfn(vma, (unsigned long) vmf->virtual_address, pfn);
+
+	if (ret == -ENOMEM || ret == -EAGAIN)
+		return VM_FAULT_OOM;
+	else if (ret == -EFAULT)
+		return VM_FAULT_SIGBUS;
+
+	return VM_FAULT_NOPAGE;
+}
+
+static void kgsl_ebimem_free(struct kgsl_memdesc *memdesc)
+
+{
+	kgsl_driver.stats.coherent -= memdesc->size;
+	if (memdesc->hostptr)
+		iounmap(memdesc->hostptr);
+
+	free_contiguous_memory_by_paddr(memdesc->physaddr);
+}
+
 static void kgsl_coherent_free(struct kgsl_memdesc *memdesc)
 {
 	kgsl_driver.stats.coherent -= memdesc->size;
@@ -337,6 +374,12 @@ struct kgsl_memdesc_ops kgsl_vmalloc_ops = {
 	.vmfault = kgsl_vmalloc_vmfault,
 };
 EXPORT_SYMBOL(kgsl_vmalloc_ops);
+
+static struct kgsl_memdesc_ops kgsl_ebimem_ops = {
+	.free = kgsl_ebimem_free,
+	.vmflags = kgsl_contiguous_vmflags,
+	.vmfault = kgsl_contiguous_vmfault,
+};
 
 static struct kgsl_memdesc_ops kgsl_coherent_ops = {
 	.free = kgsl_coherent_free,
@@ -378,7 +421,7 @@ _kgsl_sharedmem_vmalloc(struct kgsl_memdesc *memdesc,
 	memdesc->ops = &kgsl_vmalloc_ops;
 	memdesc->hostptr = (void *) ptr;
 
-	memdesc->sg = kmalloc(sglen * sizeof(struct scatterlist), GFP_KERNEL);
+	memdesc->sg = vmalloc(sglen * sizeof(struct scatterlist));
 	if (memdesc->sg == NULL) {
 		ret = -ENOMEM;
 		goto done;
@@ -511,24 +554,99 @@ void kgsl_sharedmem_free(struct kgsl_memdesc *memdesc)
 	if (memdesc->ops && memdesc->ops->free)
 		memdesc->ops->free(memdesc);
 
-	kfree(memdesc->sg);
+	vfree(memdesc->sg);
 
 	memset(memdesc, 0, sizeof(*memdesc));
 }
 EXPORT_SYMBOL(kgsl_sharedmem_free);
+
+static int
+_kgsl_sharedmem_ebimem(struct kgsl_memdesc *memdesc,
+			struct kgsl_pagetable *pagetable, size_t size)
+{
+	int result = 0;
+
+	memdesc->size = size;
+	memdesc->pagetable = pagetable;
+	memdesc->ops = &kgsl_ebimem_ops;
+	memdesc->physaddr = allocate_contiguous_ebi_nomap(size, SZ_8K);
+
+	if (memdesc->physaddr == 0) {
+		KGSL_CORE_ERR("allocate_contiguous_ebi_nomap(%d) failed\n",
+			size);
+		return -ENOMEM;
+	}
+
+	result = memdesc_sg_phys(memdesc, memdesc->physaddr, size);
+
+	if (result)
+		goto err;
+
+	result = kgsl_mmu_map(pagetable, memdesc,
+		GSL_PT_PAGE_RV | GSL_PT_PAGE_WV);
+
+	if (result)
+		goto err;
+
+	KGSL_STATS_ADD(size, kgsl_driver.stats.coherent,
+		kgsl_driver.stats.coherent_max);
+
+err:
+	if (result)
+		kgsl_sharedmem_free(memdesc);
+
+	return result;
+}
+
+int
+kgsl_sharedmem_ebimem_user(struct kgsl_memdesc *memdesc,
+			struct kgsl_pagetable *pagetable,
+			size_t size, int flags)
+{
+	size = ALIGN(size, PAGE_SIZE);
+	return _kgsl_sharedmem_ebimem(memdesc, pagetable, size);
+}
+EXPORT_SYMBOL(kgsl_sharedmem_ebimem_user);
+
+int
+kgsl_sharedmem_ebimem(struct kgsl_memdesc *memdesc,
+		struct kgsl_pagetable *pagetable, size_t size)
+{
+	int result;
+	size = ALIGN(size, 8192);
+	result = _kgsl_sharedmem_ebimem(memdesc, pagetable, size);
+
+	if (result)
+		return result;
+
+	memdesc->hostptr = ioremap(memdesc->physaddr, size);
+
+	if (memdesc->hostptr == NULL) {
+		KGSL_CORE_ERR("ioremap failed\n");
+		kgsl_sharedmem_free(memdesc);
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(kgsl_sharedmem_ebimem);
 
 int
 kgsl_sharedmem_readl(const struct kgsl_memdesc *memdesc,
 			uint32_t *dst,
 			unsigned int offsetbytes)
 {
+	uint32_t *src;
 	BUG_ON(memdesc == NULL || memdesc->hostptr == NULL || dst == NULL);
-	WARN_ON(offsetbytes + sizeof(unsigned int) > memdesc->size);
+	WARN_ON(offsetbytes % sizeof(uint32_t) != 0);
+	if (offsetbytes % sizeof(uint32_t) != 0)
+		return -EINVAL;
 
-	if (offsetbytes + sizeof(unsigned int) > memdesc->size)
+	WARN_ON(offsetbytes + sizeof(uint32_t) > memdesc->size);
+	if (offsetbytes + sizeof(uint32_t) > memdesc->size)
 		return -ERANGE;
-
-	*dst = readl_relaxed(memdesc->hostptr + offsetbytes);
+	src = (uint32_t *)(memdesc->hostptr + offsetbytes);
+	*dst = *src;
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_sharedmem_readl);
@@ -538,12 +656,19 @@ kgsl_sharedmem_writel(const struct kgsl_memdesc *memdesc,
 			unsigned int offsetbytes,
 			uint32_t src)
 {
+	uint32_t *dst;
 	BUG_ON(memdesc == NULL || memdesc->hostptr == NULL);
-	BUG_ON(offsetbytes + sizeof(unsigned int) > memdesc->size);
+	WARN_ON(offsetbytes % sizeof(uint32_t) != 0);
+	if (offsetbytes % sizeof(uint32_t) != 0)
+		return -EINVAL;
 
+	WARN_ON(offsetbytes + sizeof(uint32_t) > memdesc->size);
+	if (offsetbytes + sizeof(uint32_t) > memdesc->size)
+		return -ERANGE;
 	kgsl_cffdump_setmem(memdesc->gpuaddr + offsetbytes,
-		src, sizeof(uint));
-	writel_relaxed(src, memdesc->hostptr + offsetbytes);
+		src, sizeof(uint32_t));
+	dst = (uint32_t *)(memdesc->hostptr + offsetbytes);
+	*dst = src;
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_sharedmem_writel);
