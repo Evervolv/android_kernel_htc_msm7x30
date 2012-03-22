@@ -93,6 +93,7 @@ static struct adreno_device device_3d0 = {
 		.pwrctrl = {
 			.regulator_name = "fs_gfx3d",
 			.irq_name = KGSL_3D0_IRQ,
+			.src_clk_name = "grp_src_clk",
 		},
 		.mutex = __MUTEX_INITIALIZER(device_3d0.dev.mutex),
 		.state = KGSL_STATE_INIT,
