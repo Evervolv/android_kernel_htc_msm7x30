@@ -14,6 +14,7 @@
 #include <mach/msm_iomap.h>
 #include <mach/msm_bus.h>
 #include <mach/socinfo.h>
+#include <mach/internal_power_rail.h>
 
 #include "kgsl.h"
 #include "kgsl_pwrscale.h"
@@ -385,6 +386,7 @@ void kgsl_pwrctrl_pwrrail(struct kgsl_device *device, int state)
 	if (state == KGSL_PWRFLAGS_OFF) {
 		if (test_and_clear_bit(KGSL_PWRFLAGS_POWER_ON,
 			&pwr->power_flags)) {
+			internal_pwr_rail_ctl(pwr->pwr_rail, 0);
 			trace_kgsl_rail(device, state);
 			if (pwr->gpu_reg)
 				regulator_disable(pwr->gpu_reg);
@@ -392,6 +394,7 @@ void kgsl_pwrctrl_pwrrail(struct kgsl_device *device, int state)
 	} else if (state == KGSL_PWRFLAGS_ON) {
 		if (!test_and_set_bit(KGSL_PWRFLAGS_POWER_ON,
 			&pwr->power_flags)) {
+			internal_pwr_rail_ctl(pwr->pwr_rail, 1);
 			trace_kgsl_rail(device, state);
 			if (pwr->gpu_reg)
 				regulator_enable(pwr->gpu_reg);
@@ -487,7 +490,15 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	pwr->nap_allowed = pdata->nap_allowed;
 	pwr->idle_needed = pdata->idle_needed;
 	pwr->interval_timeout = pdata->idle_timeout;
-	pwr->ebi1_clk = clk_get(&pdev->dev, "bus_clk");
+
+	if (internal_pwr_rail_mode(pwr->pwr_rail,
+			PWR_RAIL_CTL_MANUAL)) {
+		KGSL_PWR_ERR(device, "call internal_pwr_rail_mode failed\n");
+		result = -EINVAL;
+		goto done;
+	}
+
+	pwr->ebi1_clk = clk_get(NULL, "ebi1_kgsl_clk");
 	if (IS_ERR(pwr->ebi1_clk))
 		pwr->ebi1_clk = NULL;
 	else

@@ -12,6 +12,8 @@
  */
 #include <linux/uaccess.h>
 
+#include <mach/internal_power_rail.h>
+
 #include "kgsl.h"
 #include "kgsl_cffdump.h"
 #include "kgsl_sharedmem.h"
@@ -151,6 +153,7 @@ static struct z180_device device_2d0 = {
 		.pwrctrl = {
 			.regulator_name = "fs_gfx2d0",
 			.irq_name = KGSL_2D0_IRQ,
+			.pwr_rail = PWR_RAIL_GRP_2D_CLK,
 		},
 		.mutex = __MUTEX_INITIALIZER(device_2d0.dev.mutex),
 		.state = KGSL_STATE_INIT,

@@ -57,6 +57,7 @@ struct kgsl_pwrctrl {
 	s64 time;
 	struct kgsl_busy busy;
 	unsigned int restore_slumber;
+	unsigned int pwr_rail;
 };
 
 void kgsl_pwrctrl_irq(struct kgsl_device *device, int state);
