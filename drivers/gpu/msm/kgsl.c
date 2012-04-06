@@ -1283,7 +1283,8 @@ static int memdesc_sg_virt(struct kgsl_memdesc *memdesc,
 	int sglen = PAGE_ALIGN(size) / PAGE_SIZE;
 	unsigned long paddr = (unsigned long) addr;
 
-	memdesc->sg = vmalloc(sglen * sizeof(struct scatterlist));
+	memdesc->sg = kgsl_sg_alloc(sglen);
+
 	if (memdesc->sg == NULL)
 		return -ENOMEM;
 
@@ -1323,7 +1324,7 @@ static int memdesc_sg_virt(struct kgsl_memdesc *memdesc,
 
 err:
 	spin_unlock(&current->mm->page_table_lock);
-	vfree(memdesc->sg);
+	kgsl_sg_free(memdesc->sg,  sglen);
 	memdesc->sg = NULL;
 
 	return -EINVAL;
