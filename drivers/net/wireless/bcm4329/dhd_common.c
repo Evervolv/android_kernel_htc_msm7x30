@@ -1315,6 +1315,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	int scan_assoc_time = 40;
 	int scan_unassoc_time = 40;
 	uint32 listen_interval = LISTEN_INTERVAL; /* Default Listen Interval in Beacons */
+	uint32 nmode = 0;
 #if defined(SOFTAP)
 	uint dtim = 1;
 #endif
@@ -1367,6 +1368,11 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 			memcpy(dhd->mac.octet, iovbuf, ETHER_ADDR_LEN);
 	}
 #endif /* SET_RANDOM_MAC_SOFTAP */
+
+	/* set nmode to 0 */
+	bcm_mkiovar("nmode", (char *)&nmode, 4, iovbuf, sizeof(iovbuf));
+	dhdcdc_set_ioctl(dhd, 0, WLC_SET_VAR, iovbuf, sizeof(iovbuf));
+	printk("wifi: Disable 802.11n\n");
 
 	/* Set Country code */
 	if (dhd->country_code[0] != 0) {
