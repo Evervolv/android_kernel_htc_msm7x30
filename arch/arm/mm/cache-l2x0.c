@@ -2,6 +2,7 @@
  * arch/arm/mm/cache-l2x0.c - L210/L220 cache controller support
  *
  * Copyright (C) 2007 ARM Limited
+ * Copyright (c) 2009, 2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -244,12 +245,50 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 	l2x0_way_mask = (1 << ways) - 1;
 	l2x0_inv_all();
 
-	/*
-	 * Check if l2x0 controller is already enabled.
-	 * If you are booting from non-secure mode
-	 * accessing the below registers will fault.
-	 */
-	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & 1)) {
+	/* enable L2X0 */
+	bits = readl_relaxed(l2x0_base + L2X0_CTRL);
+	bits |= 0x01;	/* set bit 0 */
+	writel_relaxed(bits, l2x0_base + L2X0_CTRL);
+
+	switch (cache_id & L2X0_CACHE_ID_PART_MASK) {
+	case L2X0_CACHE_ID_PART_L220:
+		outer_cache.inv_range = l2x0_inv_range;
+		outer_cache.clean_range = l2x0_clean_range;
+		outer_cache.flush_range = l2x0_flush_range;
+		printk(KERN_INFO "L220 cache controller enabled\n");
+		break;
+	case L2X0_CACHE_ID_PART_L210:
+	default:
+		outer_cache.inv_range = l2x0_inv_range_atomic;
+		outer_cache.clean_range = l2x0_clean_range_atomic;
+		outer_cache.flush_range = l2x0_flush_range_atomic;
+		printk(KERN_INFO "L210 cache controller enabled\n");
+		break;
+	}
+
+	outer_cache.sync = l2x0_cache_sync;
+
+	mb();
+}
+
+void l2x0_suspend(void)
+{
+	/* Save aux control register value */
+	aux_ctrl_save = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
+	/* Flush all cache */
+	l2x0_flush_all();
+	/* Disable the cache */
+	writel_relaxed(0, l2x0_base + L2X0_CTRL);
+
+	/* Memory barrier */
+	dmb();
+}
+
+void l2x0_resume(int collapsed)
+{
+	if (collapsed) {
+		/* Disable the cache */
+		writel_relaxed(0, l2x0_base + L2X0_CTRL);
 
 		/* l2x0 controller is disabled */
 		writel_relaxed(aux, l2x0_base + L2X0_AUX_CTRL);
