@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.14
-# Tue May  8 12:28:14 2012
+# Sun May 27 23:37:45 2012
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1528,7 +1528,7 @@ CONFIG_MSM_CAMERA=y
 CONFIG_MSM_CAMERA_7X30=y
 # CONFIG_MSM_CAMERA_8X60 is not set
 # CONFIG_MSM_CAMERA_DEBUG is not set
-CONFIG_FLASH_BACKLIGHT_OFF=y
+# CONFIG_FLASH_BACKLIGHT_OFF is not set
 
 #
 # Camera Sensor Selection
