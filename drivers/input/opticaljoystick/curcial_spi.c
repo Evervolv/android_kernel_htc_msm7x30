@@ -812,9 +812,11 @@ module_exit(curcial_oj_module_exit);
 
 void curcial_oj_send_key(unsigned int code, int value)
 {
-	if ((my_oj != NULL) && (my_oj->input_dev != NULL))
+	if ((my_oj != NULL) && (my_oj->input_dev != NULL)) {
 		input_report_key(my_oj->input_dev, code, value);
-	else
+		if (code == BTN_MOUSE)
+			input_sync(my_oj->input_dev);
+	} else
 		printk(KERN_WARNING "%s: device not ready...\n", __func__);
 }
 
