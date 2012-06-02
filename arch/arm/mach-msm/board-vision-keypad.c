@@ -170,8 +170,8 @@ static struct gpio_event_matrix_info vision_keypad_matrix_info = {
 	.input_gpios = vision_pmic_col_gpios,
 	.noutputs = KEYMAP_NUM_ROWS,
 	.ninputs = KEYMAP_NUM_COLS,
-	.settle_time.tv_nsec = 40 * NSEC_PER_USEC,
-	.poll_time.tv_nsec = 20 * NSEC_PER_MSEC,
+	.settle_time.tv.nsec = 40 * NSEC_PER_USEC,
+	.poll_time.tv.nsec = 20 * NSEC_PER_MSEC,
 	.flags = GPIOKPF_LEVEL_TRIGGERED_IRQ | GPIOKPF_REMOVE_PHANTOM_KEYS | GPIOKPF_PRINT_UNMAPPED_KEYS /*| GPIOKPF_PRINT_MAPPED_KEYS*/
 };
 #endif
