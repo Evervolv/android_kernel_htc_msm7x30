@@ -173,7 +173,7 @@ void adreno_drawctxt_destroy(struct kgsl_device *device,
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_context *drawctxt = context->devctxt;
 
-	if (drawctxt == NULL)
+	if (context == NULL || context->devctxt == NULL)
 		return;
 
 	/* deactivate context */
