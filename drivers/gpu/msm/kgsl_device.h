@@ -89,7 +89,7 @@ struct kgsl_functable {
 	void (*power_stats)(struct kgsl_device *device,
 		struct kgsl_power_stats *stats);
 	void (*irqctrl)(struct kgsl_device *device, int state);
-	unsigned int (*gpuid)(struct kgsl_device *device);
+	unsigned int (*gpuid)(struct kgsl_device *device, unsigned int *chipid);
 	void * (*snapshot)(struct kgsl_device *device, void *snapshot,
 		int *remain, int hang);
 	/* Optional functions - these functions are not mandatory.  The
@@ -258,9 +258,10 @@ static inline int kgsl_idle(struct kgsl_device *device, unsigned int timeout)
 	return device->ftbl->idle(device, timeout);
 }
 
-static inline unsigned int kgsl_gpuid(struct kgsl_device *device)
+static inline unsigned int kgsl_gpuid(struct kgsl_device *device,
+	unsigned int *chipid)
 {
-	return device->ftbl->gpuid(device);
+	return device->ftbl->gpuid(device, chipid);
 }
 
 static inline int kgsl_create_device_sysfs_files(struct device *root,
