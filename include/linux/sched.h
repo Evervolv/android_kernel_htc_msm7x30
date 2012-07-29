@@ -639,6 +639,9 @@ struct signal_struct {
 #endif
 
 	int oom_adj;	/* OOM kill score adjustment (bit shift) */
+	int oom_score_adj;	/* OOM kill score adjustment */
+	int oom_score_adj_min;	/* OOM kill score adjustment minimum value.
+				 * Only settable by CAP_SYS_RESOURCE. */
 };
 
 /* Context switch must be unlocked if interrupts are to be enabled */
@@ -1199,10 +1202,15 @@ struct task_struct {
 	unsigned int rt_priority;
 #ifdef CONFIG_SCHED_BFS
 	int time_slice;
-	u64 deadline;
+	/* Virtual deadline in niffies, and when the deadline was set */
+	u64 deadline, deadline_niffy;
 	struct list_head run_list;
 	u64 last_ran;
 	u64 sched_time; /* sched_clock time spent running */
+	/* Number of threads currently requesting CPU time */
+	unsigned long threads_running;
+	/* Depth of forks from init */
+	int fork_depth;
 #ifdef CONFIG_SMP
 	int sticky; /* Soft affined flag */
 #endif
@@ -1571,6 +1579,14 @@ extern int runqueue_is_locked(int cpu);
 extern void sched_privileged_task(struct task_struct *p);
 extern int sysctl_sched_privileged_nice_level;
 
+=======
+static inline void cpu_scaling(int cpu)
+{
+}
+
+static inline void cpu_nonscaling(int cpu)
+{
+}
 #define tsk_seruntime(t)	((t)->se.sum_exec_runtime)
 #define tsk_rttimeout(t)	((t)->rt.timeout)
 
@@ -1805,6 +1821,9 @@ extern void thread_group_times(struct task_struct *p, cputime_t *ut, cputime_t *
 
 extern int task_free_register(struct notifier_block *n);
 extern int task_free_unregister(struct notifier_block *n);
+
+extern int task_fork_register(struct notifier_block *n);
+extern int task_fork_unregister(struct notifier_block *n);
 
 /*
  * Per process flags

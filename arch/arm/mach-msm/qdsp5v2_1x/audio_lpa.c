@@ -625,6 +625,7 @@ static void audlpa_async_send_data(struct audio *audio, unsigned needed,
 			temp = audio->bytecount_head;
 			used_buf = list_first_entry(&audio->out_queue,
 					struct audlpa_buffer_node, list);
+
 			if (audio->device_switch !=
 				DEVICE_SWITCH_STATE_COMPLETE) {
 				audio->bytecount_head +=

@@ -53,9 +53,10 @@ struct pppoe_addr{
  */ 
 #define PX_PROTO_OE    0 /* Currently just PPPoE */
 #define PX_PROTO_OL2TP 1 /* Now L2TP also */
-#define PX_PROTO_OLAC  2
-#define PX_PROTO_OPNS  3
-#define PX_MAX_PROTO   4
+#define PX_PROTO_PPTP  2
+#define PX_PROTO_OLAC  3
+#define PX_PROTO_OPNS  4
+#define PX_MAX_PROTO   5
 
 struct sockaddr_pppox { 
        sa_family_t     sa_family;            /* address family, AF_PPPOX */ 
@@ -210,7 +211,7 @@ struct pppox_proto {
 	struct module	*owner;
 };
 
-extern int register_pppox_proto(int proto_num, struct pppox_proto *pp);
+extern int register_pppox_proto(int proto_num, const struct pppox_proto *pp);
 extern void unregister_pppox_proto(int proto_num);
 extern void pppox_unbind_sock(struct sock *sk);/* delete ppp-channel binding */
 extern int pppox_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg);

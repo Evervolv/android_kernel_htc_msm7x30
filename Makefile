@@ -342,7 +342,7 @@ LDFLAGS_MODULE  = -T $(srctree)/scripts/module-common.lds
 CFLAGS_KERNEL	= -floop-block -floop-interchange -floop-strip-mine \
 				  -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a -mfpu=vfpv3 \
 				  -ftree-vectorize -mfloat-abi=hard -fsingle-precision-constant
-AFLAGS_KERNEL	=
+AFLAGS_KERNEL	= $(CFLAGS_KERNEL)
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
 

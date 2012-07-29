@@ -98,8 +98,8 @@ choice
 	config DEFAULT_BFQ
 		bool "BFQ" if IOSCHED_BFQ=y
 
-        config DEFAULT_SIO
-                bool "SIO" if IOSCHED_SIO=y
+	config DEFAULT_SIO
+		bool "SIO" if IOSCHED_SIO=y
 
 	config DEFAULT_NOOP
 		bool "No-op" if IOSCHED_NOOP=y
@@ -114,7 +114,7 @@ config DEFAULT_IOSCHED
 	default "deadline" if DEFAULT_DEADLINE
 	default "cfq" if DEFAULT_CFQ
 	default "bfq" if DEFAULT_BFQ
-        default "sio" if DEFAULT_SIO
+	default "sio" if DEFAULT_SIO
 	default "noop" if DEFAULT_NOOP
 	default "vr" if DEFAULT_VR
 

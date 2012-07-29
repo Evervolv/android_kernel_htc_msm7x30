@@ -333,7 +333,9 @@ static u32 res_trk_convert_perf_lvl_to_freq(u64 perf_lvl)
 	return (u32)freq;
 }
 
+#ifdef AXI_CLK_SCALING
 static struct pm_qos_request_list *qos_req_list;
+#endif
 
 u32 res_trk_power_up(void)
 {
@@ -425,7 +427,7 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 			mfc_freq = mfc_clk_freq_table[0];
 			axi_freq = axi_clk_freq_table_enc[0];
 		}
-		VCDRES_MSG_HIGH("\n ENCODER: axi_freq = %u"
+		VCDRES_MSG_MED("\n ENCODER: axi_freq = %u"
 			", mfc_freq = %u, calc_mfc_freq = %u,"
 			" req_perf_lvl = %u", axi_freq,
 			mfc_freq, calc_mfc_freq,
@@ -445,7 +447,7 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 				axi_freq = axi_clk_freq_table_dec[1];
 			}
 		}
-		VCDRES_MSG_HIGH("\n DECODER: axi_freq = %u"
+		VCDRES_MSG_MED("\n DECODER: axi_freq = %u"
 			", mfc_freq = %u, calc_mfc_freq = %u,"
 			" req_perf_lvl = %u", axi_freq,
 			mfc_freq, calc_mfc_freq,
@@ -454,7 +456,7 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 
 #ifdef AXI_CLK_SCALING
     if (req_perf_lvl != VCD_RESTRK_MIN_PERF_LEVEL) {
-		VCDRES_MSG_HIGH("\n %s(): Setting AXI freq to %u",
+		VCDRES_MSG_MED("\n %s(): Setting AXI freq to %u",
 			__func__, axi_freq);
 		pm_qos_update_request(qos_req_list,
 			axi_freq);	
@@ -463,7 +465,7 @@ u32 res_trk_set_perf_level(u32 req_perf_lvl, u32 *pn_set_perf_lvl,
 
 #ifdef USE_RES_TRACKER
     if (req_perf_lvl != VCD_RESTRK_MIN_PERF_LEVEL) {
-		VCDRES_MSG_HIGH("\n %s(): Setting MFC freq to %u",
+		VCDRES_MSG_MED("\n %s(): Setting MFC freq to %u",
 			__func__, mfc_freq);
 		if (!res_trk_sel_clk_rate(mfc_freq)) {
 			VCDRES_MSG_ERROR("%s(): res_trk_sel_clk_rate FAILED\n",
@@ -625,4 +627,9 @@ void res_trk_init(struct device *device, u32 irq)
 	mutex_init(&resource_context.lock);
 	resource_context.device = device;
 	resource_context.irq_num = irq;
+	resource_context.core_type = VCD_CORE_720P;
+}
+
+u32 res_trk_get_core_type(void){
+	return resource_context.core_type;
 }

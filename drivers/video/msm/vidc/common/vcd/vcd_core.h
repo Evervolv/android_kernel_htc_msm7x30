@@ -75,6 +75,11 @@ enum vcd_command {
 	VCD_CMD_CLIENT_CLOSE
 };
 
+enum vcd_core_type {
+	VCD_CORE_1080P,
+	VCD_CORE_720P,
+};
+
 struct vcd_cmd_q_element {
 	enum vcd_command pending_cmd;
 };
@@ -112,6 +117,7 @@ struct vcd_transc {
 	struct vcd_buffer_entry *ip_buf_entry;
 
 	s64 time_stamp;
+	u32 flags;
 	u32 ip_frm_tag;
 	enum vcd_frame frame;
 
@@ -216,6 +222,7 @@ struct vcd_clnt_ctxt {
 	struct vcd_clnt_status status;
 
 	struct vcd_clnt_ctxt *next;
+	u32 meta_mode;
 };
 
 #define VCD_BUFFERPOOL_INUSE_DECREMENT(val) \

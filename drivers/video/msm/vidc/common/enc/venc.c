@@ -408,21 +408,24 @@ static u32 vid_enc_msg_pending(struct video_client_ctx *client_ctx)
 	return !islist_empty;
 }
 
-static u32 vid_enc_get_next_msg(struct video_client_ctx *client_ctx,
+static int vid_enc_get_next_msg(struct video_client_ctx *client_ctx,
 		struct venc_msg *venc_msg_info)
 {
 	int rc;
 	struct vid_enc_msg *vid_enc_msg = NULL;
 
 	if (!client_ctx)
-		return false;
+		return -EIO;
 
 	rc = wait_event_interruptible(client_ctx->msg_wait,
 		vid_enc_msg_pending(client_ctx));
 
-	if (rc < 0 || client_ctx->stop_msg) {
-		DBG("rc = %d, stop_msg = %u\n", rc, client_ctx->stop_msg);
-		return false;
+	if (rc < 0) {
+		DBG("rc = %d,stop_msg= %u\n", rc, client_ctx->stop_msg);
+		return rc;
+	} else if (client_ctx->stop_msg) {
+		DBG("stopped stop_msg = %u\n", client_ctx->stop_msg);
+		return -EIO;
 	}
 
 	mutex_lock(&client_ctx->msg_queue_lock);
@@ -437,7 +440,7 @@ static u32 vid_enc_get_next_msg(struct video_client_ctx *client_ctx,
 		kfree(vid_enc_msg);
 	}
 	mutex_unlock(&client_ctx->msg_queue_lock);
-	return true;
+	return 0;
 }
 
 static u32 vid_enc_close_client(struct video_client_ctx *client_ctx)
@@ -526,7 +529,7 @@ static int vid_enc_open(struct inode *inode, struct file *file)
 
 	client_index = vid_enc_get_empty_client_index();
 
-	if (client_index == -1) {
+	if (client_index < 0) {
 		ERR("%s() : No free clients client_index == -1\n",
 			__func__);
 		return -ENODEV;
@@ -724,6 +727,7 @@ static int vid_enc_ioctl(struct inode *inode, struct file *file,
 	struct venc_ioctl_msg venc_msg;
 	void __user *arg = (void __user *)u_arg;
 	u32 result = true;
+	int result_read = -1;
 
 	DBG("%s\n", __func__);
 
@@ -740,9 +744,9 @@ static int vid_enc_ioctl(struct inode *inode, struct file *file,
 		if (copy_from_user(&venc_msg, arg, sizeof(venc_msg)))
 			return -EFAULT;
 		DBG("VEN_IOCTL_CMD_READ_NEXT_MSG\n");
-		result = vid_enc_get_next_msg(client_ctx, &cb_msg);
-		if (!result)
-			return -EIO;
+		result_read = vid_enc_get_next_msg(client_ctx, &cb_msg);
+		if (result_read < 0)
+			return result_read;
 		if (copy_to_user(venc_msg.out, &cb_msg, sizeof(cb_msg)))
 			return -EFAULT;
 		break;
@@ -1280,6 +1284,7 @@ static int vid_enc_ioctl(struct inode *inode, struct file *file,
 	case VEN_IOCTL_GET_SEQUENCE_HDR:
 	{
 		struct venc_seqheader seq_header, seq_header_user;
+		memset(&seq_header, 0, sizeof(struct venc_seqheader));
 		if (copy_from_user(&venc_msg, arg, sizeof(venc_msg)))
 			return -EFAULT;
 
@@ -1518,6 +1523,29 @@ static int vid_enc_ioctl(struct inode *inode, struct file *file,
 		if (copy_to_user(venc_msg.out,
 			&vid_enc_device_p->num_clients, sizeof(u32)))
 			return -EFAULT;
+		break;
+	}
+	case VEN_IOCTL_SET_METABUFFER_MODE:
+	{
+		u32 metabuffer_mode, vcd_status;
+		struct vcd_property_hdr vcd_property_hdr;
+		struct vcd_property_live live_mode;
+
+		if (copy_from_user(&venc_msg, arg, sizeof(venc_msg)))
+			return -EFAULT;
+		if (copy_from_user(&metabuffer_mode, venc_msg.in,
+			sizeof(metabuffer_mode)))
+			return -EFAULT;
+		vcd_property_hdr.prop_id = VCD_I_META_BUFFER_MODE;
+		vcd_property_hdr.sz =
+			sizeof(struct vcd_property_live);
+		live_mode.live = metabuffer_mode;
+		vcd_status = vcd_set_property(client_ctx->vcd_handle,
+					&vcd_property_hdr, &live_mode);
+		if (vcd_status) {
+			pr_err(" Setting metabuffer mode failed");
+			return -EIO;
+		}
 		break;
 	}
 	case VEN_IOCTL_SET_AC_PREDICTION:

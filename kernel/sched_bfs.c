@@ -120,14 +120,18 @@
 #define NS_TO_MS(TIME)		((TIME) >> 20)
 #define NS_TO_US(TIME)		((TIME) >> 10)
 
-#define RESCHED_US	(100) /* Reschedule if less than this many Î¼s left */
+#define RESCHED_US	(100) /* Reschedule if less than this many μs left */
 
 /*
  * This is the time all tasks within the same priority round robin.
  * Value is in ms and set to a minimum of 6ms. Scales with number of cpus.
  * Tunable via /proc interface.
  */
-int rr_interval __read_mostly = CONFIG_SCHED_BFS_RR;
+#ifdef CONFIG_SCHED_BFS_CUSTOM_RR
+int rr_interval __read_mostly = CONFIG_SCHED_BFS_RR_INTERVAL;
+#else
+int rr_interval __read_mostly = 6;
+#endif
 
 /*
  * sched_iso_cpu - sysctl which determines the cpu percentage SCHED_ISO tasks
@@ -135,6 +139,15 @@ int rr_interval __read_mostly = CONFIG_SCHED_BFS_RR;
  * all online cpus.
  */
 int sched_iso_cpu __read_mostly = 70;
+
+/*
+ * group_thread_accounting - sysctl to decide whether to treat whole thread
+ * groups as a single entity for the purposes of CPU distribution.
+ */
+int group_thread_accounting __read_mostly;
+
+/* fork_depth_penalty - Whether to penalise CPU according to fork depth. */
+int fork_depth_penalty __read_mostly = 1;
 
 /*
  * The relative length of deadline for each priority(nice) level.
@@ -647,11 +660,29 @@ static int isoprio_suitable(void)
 	return !grq.iso_refractory;
 }
 
+static inline u64 __task_deadline_diff(struct task_struct *p);
+static inline u64 task_deadline_diff(struct task_struct *p);
+
 /*
  * Adding to the global runqueue. Enter with grq locked.
  */
 static void enqueue_task(struct task_struct *p)
 {
+		s64 max_tdd = task_deadline_diff(p);
+
+	/*
+	 * Make sure that when we're queueing this task again that it
+	 * doesn't have any old deadlines from when the thread group was
+	 * being penalised and cap the deadline to the highest it could
+	 * be, based on the current number of threads running.
+	 */
+	if (group_thread_accounting) {
+		max_tdd += p->group_leader->threads_running *
+			   __task_deadline_diff(p);
+	}
+	if (p->deadline - p->deadline_niffy > max_tdd)
+		p->deadline = p->deadline_niffy + max_tdd;
+
 	if (!rt_task(p)) {
 		/* Check it hasn't gotten rt from PI */
 		if ((idleprio_task(p) && idleprio_suitable(p)) ||
@@ -937,10 +968,13 @@ static int effective_prio(struct task_struct *p)
 }
 
 /*
- * activate_task - move a task to the runqueue. Enter with grq locked.
+ * activate_task - move a task to the runqueue. Enter with grq locked. The
+ * number of threads running is stored in the group_leader struct.
  */
 static void activate_task(struct task_struct *p, struct rq *rq)
 {
+		unsigned long *threads_running = &p->group_leader->threads_running;
+
 	update_clocks(rq);
 
 	/*
@@ -957,6 +991,14 @@ static void activate_task(struct task_struct *p, struct rq *rq)
 	p->prio = effective_prio(p);
 	if (task_contributes_to_load(p))
 		grq.nr_uninterruptible--;
+		/*
+	 * Adjust deadline according to number of running threads within
+	 * this thread group. This ends up distributing CPU to the thread
+	 * group as a single entity.
+	 */
+	++*threads_running;
+	if (*threads_running > 1 && group_thread_accounting)
+		p->deadline += __task_deadline_diff(p);
 	enqueue_task(p);
 	grq.nr_running++;
 	inc_qnr();
@@ -968,9 +1010,14 @@ static void activate_task(struct task_struct *p, struct rq *rq)
  */
 static inline void deactivate_task(struct task_struct *p)
 {
+	unsigned long *threads_running = &p->group_leader->threads_running;
+
 	if (task_contributes_to_load(p))
 		grq.nr_uninterruptible++;
 	grq.nr_running--;
+		--*threads_running;
+	if (*threads_running > 0 && group_thread_accounting)
+		p->deadline -= __task_deadline_diff(p);
 }
 
 #ifdef CONFIG_SMP
@@ -1455,7 +1502,7 @@ static int try_to_wake_up(struct task_struct *p, unsigned int state,
 
 	get_cpu();
 
-	/* This barrier is undocumented, probably for p->state? ãã */
+	/* This barrier is undocumented, probably for p->state? くそ */
 	smp_wmb();
 
 	/*
@@ -1464,7 +1511,7 @@ static int try_to_wake_up(struct task_struct *p, unsigned int state,
 	 */
 	rq = task_grq_lock(p, &flags);
 
-	/* state is a volatile long, ã©ã†ã—ã¦ã€åˆ†ã‹ã‚‰ãªã„ */
+	/* state is a volatile long, どうして、分からない */
 	if (!((unsigned int)p->state & state))
 		goto out_unlock;
 
@@ -1632,6 +1679,10 @@ void wake_up_new_task(struct task_struct *p, unsigned long clone_flags)
 	parent = p->parent;
 	/* Unnecessary but small chance that the parent changed CPU */
 	set_task_cpu(p, task_cpu(parent));
+		if (!(clone_flags & CLONE_THREAD)) {
+		p->fork_depth++;
+		p->threads_running = 0;
+	}
 	activate_task(p, rq);
 	trace_sched_wakeup_new(p, 1);
 	if (!(clone_flags & CLONE_VM) && rq->curr == parent &&
@@ -2573,7 +2624,7 @@ static void task_running_tick(struct rq *rq)
 	 * Tasks that were scheduled in the first half of a tick are not
 	 * allowed to run into the 2nd half of the next tick if they will
 	 * run out of time slice in the interim. Otherwise, if they have
-	 * less than RESCHED_US Î¼s of time slice left they will be rescheduled.
+	 * less than RESCHED_US μs of time slice left they will be rescheduled.
 	 */
 	if (rq->dither) {
 		if (rq->rq_time_slice > HALF_JIFFY_US)
@@ -2686,9 +2737,18 @@ static inline u64 prio_deadline_diff(int user_prio)
 	return (prio_ratios[user_prio] * rr_interval * (MS_TO_NS(1) / 128));
 }
 
-static inline u64 task_deadline_diff(struct task_struct *p)
+static inline u64 __task_deadline_diff(struct task_struct *p)
 {
 	return prio_deadline_diff(TASK_USER_PRIO(p));
+}
+
+static inline u64 task_deadline_diff(struct task_struct *p)
+{
+	u64 pdd = __task_deadline_diff(p);
+
+	if (fork_depth_penalty && p->fork_depth > 1)
+		pdd *= p->fork_depth;
+	return pdd;
 }
 
 static inline u64 static_deadline_diff(int static_prio)
@@ -2712,8 +2772,24 @@ static inline int ms_longest_deadline_diff(void)
  */
 static void time_slice_expired(struct task_struct *p)
 {
+		u64 tdd = task_deadline_diff(p);
+
+	/*
+	 * We proportionately increase the deadline according to how many
+	 * threads are running. This effectively makes a thread group have
+	 * the same CPU as one task, no matter how many threads are running.
+	 * time_slice_expired can be called when there may be none running
+	 * when p is deactivated so we must explicitly test for more than 1.
+	 */
+	if (group_thread_accounting) {
+		unsigned long *threads_running = &p->group_leader->threads_running;
+
+		if (*threads_running > 1)
+			tdd += *threads_running * __task_deadline_diff(p);
+	}
 	p->time_slice = timeslice();
-	p->deadline = grq.niffies + task_deadline_diff(p);
+	p->deadline_niffy = grq.niffies;
+	p->deadline = grq.niffies + tdd;
 }
 
 /*
@@ -3307,7 +3383,7 @@ void complete_all(struct completion *x)
 EXPORT_SYMBOL(complete_all);
 
 static inline long __sched
-do_wait_for_common(struct completion *x, long timeout, int state)
+do_wait_for_common(struct completion *x, long timeout, int state, int iowait)
 {
 	if (!x->done) {
 		DECLARE_WAITQUEUE(wait, current);
@@ -3320,7 +3396,10 @@ do_wait_for_common(struct completion *x, long timeout, int state)
 			}
 			__set_current_state(state);
 			spin_unlock_irq(&x->wait.lock);
-			timeout = schedule_timeout(timeout);
+			if (iowait)
+				timeout = io_schedule_timeout(timeout);
+			else
+			    timeout = schedule_timeout(timeout);
 			spin_lock_irq(&x->wait.lock);
 		} while (!x->done && timeout);
 		__remove_wait_queue(&x->wait, &wait);
@@ -3332,12 +3411,12 @@ do_wait_for_common(struct completion *x, long timeout, int state)
 }
 
 static long __sched
-wait_for_common(struct completion *x, long timeout, int state)
+wait_for_common(struct completion *x, long timeout, int state, int iowait)
 {
 	might_sleep();
 
 	spin_lock_irq(&x->wait.lock);
-	timeout = do_wait_for_common(x, timeout, state);
+	timeout = do_wait_for_common(x, timeout, state, iowait);
 	spin_unlock_irq(&x->wait.lock);
 	return timeout;
 }
@@ -3354,9 +3433,22 @@ wait_for_common(struct completion *x, long timeout, int state)
  */
 void __sched wait_for_completion(struct completion *x)
 {
-	wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_UNINTERRUPTIBLE);
+	wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_UNINTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL(wait_for_completion);
+
+/**
+ * wait_for_completion_io: - waits for completion of a task
+ * @x:  holds the state of this particular completion
+ *
+ * This waits for completion of a specific task to be signaled. Treats any
+ * sleeping as waiting for IO for the purposes of process accounting.
+ */
+void __sched wait_for_completion_io(struct completion *x)
+{
+	wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_UNINTERRUPTIBLE, 1);
+}
+EXPORT_SYMBOL(wait_for_completion_io);
 
 /**
  * wait_for_completion_timeout: - waits for completion of a task (w/timeout)
@@ -3370,7 +3462,7 @@ EXPORT_SYMBOL(wait_for_completion);
 unsigned long __sched
 wait_for_completion_timeout(struct completion *x, unsigned long timeout)
 {
-	return wait_for_common(x, timeout, TASK_UNINTERRUPTIBLE);
+	return wait_for_common(x, timeout, TASK_UNINTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL(wait_for_completion_timeout);
 
@@ -3383,7 +3475,7 @@ EXPORT_SYMBOL(wait_for_completion_timeout);
  */
 int __sched wait_for_completion_interruptible(struct completion *x)
 {
-	long t = wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_INTERRUPTIBLE);
+	long t = wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_INTERRUPTIBLE, 0);
 	if (t == -ERESTARTSYS)
 		return t;
 	return 0;
@@ -3402,7 +3494,7 @@ unsigned long __sched
 wait_for_completion_interruptible_timeout(struct completion *x,
 					  unsigned long timeout)
 {
-	return wait_for_common(x, timeout, TASK_INTERRUPTIBLE);
+	return wait_for_common(x, timeout, TASK_INTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL(wait_for_completion_interruptible_timeout);
 
@@ -3415,7 +3507,7 @@ EXPORT_SYMBOL(wait_for_completion_interruptible_timeout);
  */
 int __sched wait_for_completion_killable(struct completion *x)
 {
-	long t = wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_KILLABLE);
+	long t = wait_for_common(x, MAX_SCHEDULE_TIMEOUT, TASK_KILLABLE, 0);
 	if (t == -ERESTARTSYS)
 		return t;
 	return 0;
@@ -3435,7 +3527,7 @@ unsigned long __sched
 wait_for_completion_killable_timeout(struct completion *x,
 				     unsigned long timeout)
 {
-	return wait_for_common(x, timeout, TASK_KILLABLE);
+	return wait_for_common(x, timeout, TASK_KILLABLE, 0);
 }
 EXPORT_SYMBOL(wait_for_completion_killable_timeout);
 
@@ -3690,7 +3782,7 @@ SYSCALL_DEFINE1(nice, int, increment)
  *
  * This is the priority value as seen by users in /proc.
  * RT tasks are offset by -100. Normal tasks are centered around 1, value goes
- * from 0 (SCHED_ISO) up to 82 (nice +19 SCHED_IDLEPRIO).
+ * from 0 (SCHED_ISO) upwards (to nice +19 SCHED_IDLEPRIO).
  */
 int task_prio(const struct task_struct *p)
 {
@@ -3702,8 +3794,12 @@ int task_prio(const struct task_struct *p)
 
 	/* Convert to ms to avoid overflows */
 	delta = NS_TO_MS(p->deadline - grq.niffies);
-	delta = delta * 40 / ms_longest_deadline_diff();
-	if (delta > 0 && delta <= 80)
+	if (fork_depth_penalty)
+		delta *= 4;
+	else
+		delta *= 40;
+	delta /= ms_longest_deadline_diff();
+	if (delta > 0)
 		prio += delta;
 	if (idleprio_task(p))
 		prio += 40;
@@ -3869,12 +3965,6 @@ recheck:
 				case SCHED_BATCH:
 					if (policy == SCHED_BATCH)
 						goto out;
-					/*
-					 * ANDROID: Allow tasks to move between
-					 * SCHED_NORMAL <-> SCHED_BATCH
-					 */
-					if (policy == SCHED_NORMAL)
-						break;
 					if (policy != SCHED_IDLEPRIO)
 						return -EPERM;
 					break;
@@ -4279,7 +4369,7 @@ static inline int should_resched(void)
 
 static void __cond_resched(void)
 {
-	/* NOT a real fix but will make voluntary preempt work. é¦¬é¹¿ãªäº‹ */
+	/* NOT a real fix but will make voluntary preempt work. 馬鹿な事 */
 	if (unlikely(system_state != SYSTEM_RUNNING))
 		return;
 

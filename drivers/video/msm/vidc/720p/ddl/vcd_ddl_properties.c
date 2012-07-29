@@ -817,6 +817,11 @@ static u32 ddl_set_enc_property(struct ddl_client_context *ddl,
 				ddl, property_hdr, property_value);
 			break;
 		}
+	case VCD_I_META_BUFFER_MODE:
+		{
+			vcd_status = VCD_S_SUCCESS;
+			break;
+		}
 	default:
 		{
 			vcd_status = VCD_ERR_ILLEGAL_OP;
@@ -843,19 +848,19 @@ static u32 ddl_get_dec_property
 					!decoder->progressive_only,
 					decoder->codec.codec);
 					if (decoder->buf_format.buffer_format
-                                                == VCD_BUFFER_FORMAT_TILE_4x2) {
-                                                fz_size =
-                                                &decoder->client_frame_size;
-                                                fz_size->stride =
-                                                DDL_TILE_ALIGN(fz_size->width,
-                                                        DDL_TILE_ALIGN_WIDTH);
-                                                fz_size->scan_lines =
-                                                DDL_TILE_ALIGN(fz_size->height,
-                                                        DDL_TILE_ALIGN_HEIGHT);
-                                        }
+						== VCD_BUFFER_FORMAT_TILE_4x2) {
+						fz_size =
+						&decoder->client_frame_size;
+						fz_size->stride =
+						DDL_TILE_ALIGN(fz_size->width,
+							DDL_TILE_ALIGN_WIDTH);
+						fz_size->scan_lines =
+						DDL_TILE_ALIGN(fz_size->height,
+							DDL_TILE_ALIGN_HEIGHT);
+					}
 					*(struct vcd_property_frame_size *)
-					    	property_value =
-					    	decoder->client_frame_size;
+						property_value =
+						decoder->client_frame_size;
 					vcd_status = VCD_S_SUCCESS;
 			}
 			break;

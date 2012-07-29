@@ -158,6 +158,7 @@ static void do_create_rpcrouter_pdev(struct work_struct *work);
 static DECLARE_WORK(work_read_data, do_read_data);
 static DECLARE_WORK(work_create_pdevs, do_create_pdevs);
 static DECLARE_WORK(work_create_rpcrouter_pdev, do_create_rpcrouter_pdev);
+static atomic_t rpcrouter_pdev_created = ATOMIC_INIT(0);
 
 #define RR_STATE_IDLE    0
 #define RR_STATE_HEADER  1
@@ -650,7 +651,8 @@ static int process_control_msg(union rr_control_msg *msg, int len)
 
 static void do_create_rpcrouter_pdev(struct work_struct *work)
 {
-	platform_device_register(&rpcrouter_pdev);
+	if (atomic_cmpxchg(&rpcrouter_pdev_created, 0, 1) == 0)
+	  platform_device_register(&rpcrouter_pdev);
 }
 
 static void do_create_pdevs(struct work_struct *work)
@@ -803,11 +805,13 @@ static void do_read_data(struct work_struct *work)
 
 	hdr.size -= sizeof(pm);
 
-	frag = rr_malloc(hdr.size + sizeof(*frag));
+	frag = rr_malloc(sizeof(*frag));
 	frag->next = NULL;
 	frag->length = hdr.size;
-	if (rr_read(frag->data, hdr.size))
+	if (rr_read(frag->data, hdr.size)) {
+		kfree(frag);
 		goto fail_io;
+	}
 
 #if defined(CONFIG_MSM_ONCRPCROUTER_DEBUG)
 	if ((smd_rpcrouter_debug_mask & RAW_PMR) &&
@@ -946,6 +950,12 @@ struct msm_rpc_endpoint *msm_rpc_open(void)
 		return ERR_PTR(-ENOMEM);
 
 	return ept;
+}
+
+void msm_rpc_read_wakeup(struct msm_rpc_endpoint *ept)
+{
+       ept->forced_wakeup = 1;
+       wake_up(&ept->wait_q);
 }
 
 int msm_rpc_close(struct msm_rpc_endpoint *ept)
@@ -1511,7 +1521,6 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 	struct rr_packet *pkt;
 	struct rpc_request_hdr *rq;
 	struct msm_rpc_reply *reply;
-	DEFINE_WAIT(__wait);
 	unsigned long flags;
 	int rc;
 
@@ -1526,12 +1535,15 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 
 	if (ept->flags & MSM_RPC_UNINTERRUPTIBLE) {
 		if (timeout < 0) {
-			wait_event(ept->wait_q, ept_packet_available(ept));
+                       wait_event(ept->wait_q, (ept_packet_available(ept) ||
+                                                  ept->forced_wakeup));
 			if (!msm_rpc_clear_netreset(ept))
 				return -ENETRESET;
 		} else {
 			rc = wait_event_timeout(
-				ept->wait_q, ept_packet_available(ept),
+                               ept->wait_q,
+                               (ept_packet_available(ept) ||
+                                ept->forced_wakeup),
 				timeout);
 			if (!msm_rpc_clear_netreset(ept))
 				return -ENETRESET;
@@ -1541,14 +1553,17 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 	} else {
 		if (timeout < 0) {
 			rc = wait_event_interruptible(
-				ept->wait_q, ept_packet_available(ept));
+                               ept->wait_q, (ept_packet_available(ept) ||
+                                             ept->forced_wakeup));
 			if (!msm_rpc_clear_netreset(ept))
 				return -ENETRESET;
 			if (rc < 0)
 				return rc;
 		} else {
 			rc = wait_event_interruptible_timeout(
-				ept->wait_q, ept_packet_available(ept),
+                               ept->wait_q,
+                               (ept_packet_available(ept) ||
+                                ept->forced_wakeup),
 				timeout);
 			if (!msm_rpc_clear_netreset(ept))
 				return -ENETRESET;
@@ -1556,6 +1571,11 @@ int __msm_rpc_read(struct msm_rpc_endpoint *ept,
 				return -ETIMEDOUT;
 		}
 	}
+
+       if (ept->forced_wakeup) {
+               ept->forced_wakeup = 0;
+               return 0;
+       }
 
 	spin_lock_irqsave(&ept->read_q_lock, flags);
 	if (list_empty(&ept->read_q)) {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -95,13 +95,13 @@ static u32 vcd_encode_start_in_open(struct vcd_clnt_ctxt *cctxt)
 		return VCD_ERR_ILLEGAL_OP;
 	}
 
-	if (!cctxt->in_buf_pool.entries ||
+	if ((!cctxt->meta_mode && !cctxt->in_buf_pool.entries) ||
 	    !cctxt->out_buf_pool.entries ||
-	    cctxt->in_buf_pool.validated != cctxt->in_buf_pool.count ||
+	    (!cctxt->meta_mode &&
+		 cctxt->in_buf_pool.validated != cctxt->in_buf_pool.count) ||
 	    cctxt->out_buf_pool.validated !=
 	    cctxt->out_buf_pool.count) {
 		VCD_MSG_ERROR("Buffer pool is not completely setup yet");
-
 		return VCD_ERR_BAD_STATE;
 	}
 
@@ -500,6 +500,13 @@ static u32 vcd_set_property_cmn
 	rc = ddl_set_property(cctxt->ddl_handle, prop_hdr, prop_val);
 	VCD_FAILED_RETURN(rc, "Failed: ddl_set_property");
 	switch (prop_hdr->prop_id) {
+	case VCD_I_META_BUFFER_MODE:
+		{
+			struct vcd_property_live *live =
+			    (struct vcd_property_live *)prop_val;
+			cctxt->meta_mode = live->live;
+			break;
+		}
 	case VCD_I_LIVE:
 		{
 			struct vcd_property_live *live =
@@ -887,6 +894,11 @@ static void vcd_clnt_cb_in_run
 				VCD_EVT_IND_HWERRFATAL, status);
 			 break;
 		}
+	case VCD_EVT_IND_INFO_OUTPUT_RECONFIG:
+		{
+			vcd_handle_ind_info_output_reconfig(cctxt, status);
+			break;
+		}
 	default:
 		{
 			VCD_MSG_ERROR
@@ -980,6 +992,11 @@ static void vcd_clnt_cb_in_eos
 		{
 			vcd_handle_ind_hw_err_fatal(cctxt,
 				VCD_EVT_IND_HWERRFATAL,	status);
+			break;
+		}
+	case VCD_EVT_IND_INFO_OUTPUT_RECONFIG:
+		{
+			vcd_handle_ind_info_output_reconfig(cctxt, status);
 			break;
 		}
 	default:
@@ -1541,14 +1558,18 @@ void vcd_do_client_state_transition(struct vcd_clnt_ctxt *cctxt,
 		VCD_MSG_ERROR("Bad parameters. cctxt=%p, to_state=%d",
 			      cctxt, to_state);
 	}
+ 
+	if (!cctxt)
+		return;
 
 	state_ctxt = &cctxt->clnt_state;
 
-	if (state_ctxt->state == to_state) {
-		VCD_MSG_HIGH("Client already in requested to_state=%d",
-			     to_state);
-
-		return;
+	if (state_ctxt->state) {
+		if (state_ctxt->state == to_state) {
+			VCD_MSG_HIGH("Client already in requested to_state=%d",
+					to_state);
+			return;
+		}
 	}
 
 	VCD_MSG_MED("vcd_do_client_state_transition: C%d -> C%d, for api %d",
