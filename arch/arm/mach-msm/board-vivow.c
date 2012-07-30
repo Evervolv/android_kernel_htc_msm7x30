@@ -753,7 +753,7 @@ struct atmel_i2c_platform_data vivow_ts_atmel_data[] = {
 		.config_T28 = {0, 0, 3, 4, 8, 60},
 		.object_crc = {0xFF, 0xA9, 0x45},
 		.cable_config = {35, 25, 8, 16},
-		.cal_tchthr = {40, 40},
+		.call_tchthr = {40, 40},
 		.wlc_config = {20, 20, 50, 50, 40, 18, 18},
 		.wlc_freq = {0, 38, 48, 255, 255},
 		.GCAF_level = {20, 24, 28, 40, 63},
@@ -786,7 +786,7 @@ struct atmel_i2c_platform_data vivow_ts_atmel_data[] = {
 		.config_T28 = {0, 0, 3, 4, 8, 60},
 		.object_crc = {0x6A, 0x55, 0x35},
 		.cable_config = {35, 25, 8, 16},
-		.cal_tchthr = {40, 40},
+		.call_tchthr = {40, 40},
 		.wlc_config = {20, 20, 50, 50, 40, 18, 18},
 		.wlc_freq = {0, 38, 48, 255, 255},
 		.GCAF_level = {20, 24, 28, 40, 63},
@@ -2617,6 +2617,17 @@ static void vivow_reset(void)
 	gpio_set_value(VIVOW_GPIO_PS_HOLD, 0);
 }
 
+#ifdef CONFIG_MDP4_HW_VSYNC
+static void vivow_te_gpio_config(void)
+{
+	uint32_t te_gpio_table [] = {
+		PCOM_GPIO_CFG(30, 1, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA),
+	};
+	config_gpio_table(te_gpio_table, ARRAY_SIZE(te_gpio_table));
+}
+#endif
+
+
 static void __init vivow_init(void)
 {
 	int rc = 0;
@@ -2737,6 +2748,9 @@ static void __init vivow_init(void)
 #endif
 	vivow_audio_init();
 	vivow_init_keypad();
+#ifdef CONFIG_MDP4_HW_VSYNC
+	vivow_te_gpio_config();
+#endif
 	vivow_wifi_init();
 	//vivow and vivoww will share one panel code
 	vivow_init_panel(system_rev);
