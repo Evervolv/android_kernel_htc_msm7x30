@@ -21,6 +21,8 @@ int speedy_wifi_power(int on);
 int speedy_wifi_reset(int on);
 int speedy_wifi_set_carddetect(int on);
 
+#if defined(CONFIG_DHD_USE_STATIC_BUF) || defined(CONFIG_BCM4329_DHD_USE_STATIC_BUF)
+
 #define PREALLOC_WLAN_NUMBER_OF_SECTIONS	4
 #define PREALLOC_WLAN_NUMBER_OF_BUFFERS		160
 #define PREALLOC_WLAN_SECTION_HEADER		24
@@ -56,9 +58,11 @@ static void *speedy_wifi_mem_prealloc(int section, unsigned long size)
 		return NULL;
 	return wifi_mem_array[section].mem_ptr;
 }
+#endif
 
 int __init speedy_init_wifi_mem(void)
 {
+#if defined(CONFIG_DHD_USE_STATIC_BUF) || defined(CONFIG_BCM4329_DHD_USE_STATIC_BUF)
 	int i;
 
 	for (i = 0; (i < WLAN_SKB_BUF_NUM); i++) {
@@ -73,12 +77,13 @@ int __init speedy_init_wifi_mem(void)
 		if (wifi_mem_array[i].mem_ptr == NULL)
 			return -ENOMEM;
 	}
+#endif
 	return 0;
 }
 
 static struct resource speedy_wifi_resources[] = {
 	[0] = {
-		.name		= "bcm4329_wlan_irq",
+		.name		= "bcmdhd_wlan_irq",
 		.start		= MSM_GPIO_TO_INT(SPEEDY_GPIO_WIFI_IRQ),
 		.end		= MSM_GPIO_TO_INT(SPEEDY_GPIO_WIFI_IRQ),
 #ifdef CONFIG_BCM4329_PURE_ANDROID
@@ -93,7 +98,11 @@ static struct wifi_platform_data speedy_wifi_control = {
 	.set_power      = speedy_wifi_power,
 	.set_reset      = speedy_wifi_reset,
 	.set_carddetect = speedy_wifi_set_carddetect,
+#if defined(CONFIG_DHD_USE_STATIC_BUF) || defined(CONFIG_BCM4329_DHD_USE_STATIC_BUF)
 	.mem_prealloc   = speedy_wifi_mem_prealloc,
+#else
+	.mem_prealloc   = NULL,
+#endif
 #ifndef CONFIG_BCM4329_PURE_ANDROID
 	.dot11n_enable  = 1,
 	.cscan_enable   = 1,
@@ -101,7 +110,7 @@ static struct wifi_platform_data speedy_wifi_control = {
 };
 
 static struct platform_device speedy_wifi_device = {
-	.name           = "bcm4329_wlan",
+	.name           = "bcmdhd_wlan",
 	.id             = 1,
 	.num_resources  = ARRAY_SIZE(speedy_wifi_resources),
 	.resource       = speedy_wifi_resources,
@@ -142,7 +151,6 @@ static unsigned speedy_wifi_update_nvs(char *str)
 
 int __init speedy_wifi_init(void)
 {
-	int ret;
 
 	printk(KERN_INFO "%s: start\n", __func__);
 	speedy_wifi_update_nvs("sd_oobonly=1\n");
@@ -150,6 +158,5 @@ int __init speedy_wifi_init(void)
 	speedy_wifi_update_nvs("btc_params6=30\n");
         speedy_wifi_update_nvs("btc_params70=0x32\n");
 	speedy_init_wifi_mem();
-	ret = platform_device_register(&speedy_wifi_device);
-	return ret;
+	return platform_device_register(&speedy_wifi_device);
 }
