@@ -29,84 +29,84 @@
 
 
 /*
-* Concepts and ideas behind the menu governor
-*
-* For the menu governor, there are 3 decision factors for picking a C
-* state:
-* 1) Energy break even point
-* 2) Performance impact
-* 3) Latency tolerance (from pmqos infrastructure)
-* These these three factors are treated independently.
-*
-* Energy break even point
-* -----------------------
-* C state entry and exit have an energy cost, and a certain amount of time in
-* the C state is required to actually break even on this cost. CPUIDLE
-* provides us this duration in the "target_residency" field. So all that we
-* need is a good prediction of how long we'll be idle. Like the traditional
-* menu governor, we start with the actual known "next timer event" time.
-*
-* Since there are other source of wakeups (interrupts for example) than
-* the next timer event, this estimation is rather optimistic. To get a
-* more realistic estimate, a correction factor is applied to the estimate,
-* that is based on historic behavior. For example, if in the past the actual
-* duration always was 50% of the next timer tick, the correction factor will
-* be 0.5.
-*
-* menu uses a running average for this correction factor, however it uses a
-* set of factors, not just a single factor. This stems from the realization
-* that the ratio is dependent on the order of magnitude of the expected
-* duration; if we expect 500 milliseconds of idle time the likelihood of
-* getting an interrupt very early is much higher than if we expect 50 micro
-* seconds of idle time. A second independent factor that has big impact on
-* the actual factor is if there is (disk) IO outstanding or not.
-* (as a special twist, we consider every sleep longer than 50 milliseconds
-* as perfect; there are no power gains for sleeping longer than this)
-*
-* For these two reasons we keep an array of 12 independent factors, that gets
-* indexed based on the magnitude of the expected duration as well as the
-* "is IO outstanding" property.
-*
-* Repeatable-interval-detector
-* ----------------------------
-* There are some cases where "next timer" is a completely unusable predictor:
-* Those cases where the interval is fixed, for example due to hardware
-* interrupt mitigation, but also due to fixed transfer rate devices such as
-* mice.
-* For this, we use a different predictor: We track the duration of the last 8
-* intervals and if the stand deviation of these 8 intervals is below a
-* threshold value, we use the average of these intervals as prediction.
-*
-* Limiting Performance Impact
-* ---------------------------
-* C states, especially those with large exit latencies, can have a real
-* noticeable impact on workloads, which is not acceptable for most sysadmins,
-* and in addition, less performance has a power price of its own.
-*
-* As a general rule of thumb, menu assumes that the following heuristic
-* holds:
-* The busier the system, the less impact of C states is acceptable
-*
-* This rule-of-thumb is implemented using a performance-multiplier:
-* If the exit latency times the performance multiplier is longer than
-* the predicted duration, the C state is not considered a candidate
-* for selection due to a too high performance impact. So the higher
-* this multiplier is, the longer we need to be idle to pick a deep C
-* state, and thus the less likely a busy CPU will hit such a deep
-* C state.
-*
-* Two factors are used in determing this multiplier:
-* a value of 10 is added for each point of "per cpu load average" we have.
-* a value of 5 points is added for each process that is waiting for
-* IO on this CPU.
-* (these values are experimentally determined)
-*
-* The load average factor gives a longer term (few seconds) input to the
-* decision, while the iowait value gives a cpu local instantanious input.
-* The iowait factor may look low, but realize that this is also already
-* represented in the system load average.
-*
-*/
+ * Concepts and ideas behind the menu governor
+ *
+ * For the menu governor, there are 3 decision factors for picking a C
+ * state:
+ * 1) Energy break even point
+ * 2) Performance impact
+ * 3) Latency tolerance (from pmqos infrastructure)
+ * These these three factors are treated independently.
+ *
+ * Energy break even point
+ * -----------------------
+ * C state entry and exit have an energy cost, and a certain amount of time in
+ * the  C state is required to actually break even on this cost. CPUIDLE
+ * provides us this duration in the "target_residency" field. So all that we
+ * need is a good prediction of how long we'll be idle. Like the traditional
+ * menu governor, we start with the actual known "next timer event" time.
+ *
+ * Since there are other source of wakeups (interrupts for example) than
+ * the next timer event, this estimation is rather optimistic. To get a
+ * more realistic estimate, a correction factor is applied to the estimate,
+ * that is based on historic behavior. For example, if in the past the actual
+ * duration always was 50% of the next timer tick, the correction factor will
+ * be 0.5.
+ *
+ * menu uses a running average for this correction factor, however it uses a
+ * set of factors, not just a single factor. This stems from the realization
+ * that the ratio is dependent on the order of magnitude of the expected
+ * duration; if we expect 500 milliseconds of idle time the likelihood of
+ * getting an interrupt very early is much higher than if we expect 50 micro
+ * seconds of idle time. A second independent factor that has big impact on
+ * the actual factor is if there is (disk) IO outstanding or not.
+ * (as a special twist, we consider every sleep longer than 50 milliseconds
+ * as perfect; there are no power gains for sleeping longer than this)
+ *
+ * For these two reasons we keep an array of 12 independent factors, that gets
+ * indexed based on the magnitude of the expected duration as well as the
+ * "is IO outstanding" property.
+ *
+ * Repeatable-interval-detector
+ * ----------------------------
+ * There are some cases where "next timer" is a completely unusable predictor:
+ * Those cases where the interval is fixed, for example due to hardware
+ * interrupt mitigation, but also due to fixed transfer rate devices such as
+ * mice.
+ * For this, we use a different predictor: We track the duration of the last 8
+ * intervals and if the stand deviation of these 8 intervals is below a
+ * threshold value, we use the average of these intervals as prediction.
+ *
+ * Limiting Performance Impact
+ * ---------------------------
+ * C states, especially those with large exit latencies, can have a real
+ * noticeable impact on workloads, which is not acceptable for most sysadmins,
+ * and in addition, less performance has a power price of its own.
+ *
+ * As a general rule of thumb, menu assumes that the following heuristic
+ * holds:
+ *     The busier the system, the less impact of C states is acceptable
+ *
+ * This rule-of-thumb is implemented using a performance-multiplier:
+ * If the exit latency times the performance multiplier is longer than
+ * the predicted duration, the C state is not considered a candidate
+ * for selection due to a too high performance impact. So the higher
+ * this multiplier is, the longer we need to be idle to pick a deep C
+ * state, and thus the less likely a busy CPU will hit such a deep
+ * C state.
+ *
+ * Two factors are used in determing this multiplier:
+ * a value of 10 is added for each point of "per cpu load average" we have.
+ * a value of 5 points is added for each process that is waiting for
+ * IO on this CPU.
+ * (these values are experimentally determined)
+ *
+ * The load average factor gives a longer term (few seconds) input to the
+ * decision, while the iowait value gives a cpu local instantanious input.
+ * The iowait factor may look low, but realize that this is also already
+ * represented in the system load average.
+ *
+ */
 
 struct menu_device {
         int last_state_idx;
@@ -232,78 +232,79 @@ static void detect_repeating_patterns(struct menu_device *data)
 */
 static int menu_select(struct cpuidle_device *dev)
 {
-        struct menu_device *data = &__get_cpu_var(menu_devices);
-        int latency_req = pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
-        unsigned int power_usage = -1;
-        int i;
-        int multiplier;
-        struct timespec t;
+	struct menu_device *data = &__get_cpu_var(menu_devices);
+	int latency_req = pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
+	unsigned int power_usage = -1;
+	int i;
+	int multiplier;
+	struct timespec t;
 
-        if (data->needs_update) {
-                menu_update(dev);
-                data->needs_update = 0;
-        }
+	if (data->needs_update) {
+		menu_update(dev);
+		data->needs_update = 0;
+	}
 
-        data->last_state_idx = 0;
-        data->exit_us = 0;
+	data->last_state_idx = 0;
+	data->exit_us = 0;
 
-        /* Special case when user has set very strict latency requirement */
-        if (unlikely(latency_req == 0))
-                return 0;
+	/* Special case when user has set very strict latency requirement */
+	if (unlikely(latency_req == 0))
+		return 0;
 
-        /* determine the expected residency time, round up */
-        t = ktime_to_timespec(tick_nohz_get_sleep_length());
-        data->expected_us =
-                t.tv_sec * USEC_PER_SEC + t.tv_nsec / NSEC_PER_USEC;
+	/* determine the expected residency time, round up */
+	t = ktime_to_timespec(tick_nohz_get_sleep_length());
+	data->expected_us =
+		t.tv_sec * USEC_PER_SEC + t.tv_nsec / NSEC_PER_USEC;
+
 
 	data->bucket = which_bucket(data->expected_us);
 
-        multiplier = performance_multiplier();
+	multiplier = performance_multiplier();
 
-        /*
-* if the correction factor is 0 (eg first time init or cpu hotplug
-* etc), we actually want to start out with a unity factor.
-*/
-        if (data->correction_factor[data->bucket] == 0)
-                data->correction_factor[data->bucket] = RESOLUTION * DECAY;
+	/*
+	 * if the correction factor is 0 (eg first time init or cpu hotplug
+	 * etc), we actually want to start out with a unity factor.
+	 */
+	if (data->correction_factor[data->bucket] == 0)
+		data->correction_factor[data->bucket] = RESOLUTION * DECAY;
 
-        /* Make sure to round up for half microseconds */
-        data->predicted_us = div_round64(data->expected_us * data->correction_factor[data->bucket],
-                                         RESOLUTION * DECAY);
+	/* Make sure to round up for half microseconds */
+	data->predicted_us = div_round64(data->expected_us * data->correction_factor[data->bucket],
+					 RESOLUTION * DECAY);
 
-        detect_repeating_patterns(data);
+	detect_repeating_patterns(data);
 
-        /*
-* We want to default to C1 (hlt), not to busy polling
-* unless the timer is happening really really soon.
-*/
-        if (data->expected_us > 5)
-                data->last_state_idx = CPUIDLE_DRIVER_STATE_START;
+	/*
+	 * We want to default to C1 (hlt), not to busy polling
+	 * unless the timer is happening really really soon.
+	 */
+	if (data->expected_us > 5)
+		data->last_state_idx = CPUIDLE_DRIVER_STATE_START;
 
-        /*
-* Find the idle state with the lowest power while satisfying
-* our constraints.
-*/
-        for (i = CPUIDLE_DRIVER_STATE_START; i < dev->state_count; i++) {
-                struct cpuidle_state *s = &dev->states[i];
+	/*
+	 * Find the idle state with the lowest power while satisfying
+	 * our constraints.
+	 */
+	for (i = CPUIDLE_DRIVER_STATE_START; i < dev->state_count; i++) {
+		struct cpuidle_state *s = &dev->states[i];
 
-                if (s->flags & CPUIDLE_FLAG_IGNORE)
-                        continue;
-                if (s->target_residency > data->predicted_us)
-                        continue;
-                if (s->exit_latency > latency_req)
-                        continue;
-                if (s->exit_latency * multiplier > data->predicted_us)
-                        continue;
+		if (s->flags & CPUIDLE_FLAG_IGNORE)
+			continue;
+		if (s->target_residency > data->predicted_us)
+			continue;
+		if (s->exit_latency > latency_req)
+			continue;
+		if (s->exit_latency * multiplier > data->predicted_us)
+			continue;
 
-                if (s->power_usage < power_usage) {
-                        power_usage = s->power_usage;
-                        data->last_state_idx = i;
-                        data->exit_us = s->exit_latency;
-                }
-        }
+		if (s->power_usage < power_usage) {
+			power_usage = s->power_usage;
+			data->last_state_idx = i;
+			data->exit_us = s->exit_latency;
+		}
+	}
 
-        return data->last_state_idx;
+	return data->last_state_idx;
 }
 
 /**

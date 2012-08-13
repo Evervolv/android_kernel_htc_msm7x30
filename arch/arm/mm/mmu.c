@@ -1039,11 +1039,56 @@ static inline void map_memory_bank(struct membank *bank)
 	create_mapping(&map);
 }
 
+static inline void map_memory_bank0(void)
+{
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	struct map_desc map;
+#endif
+	struct meminfo *mi = &meminfo;
+	struct membank *bank = &mi->bank[0];
+
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	map.pfn = bank_pfn_start(bank);
+	map.virtual = __phys_to_virt(bank_phys_start(bank));
+	map.length = (int)_text - map.virtual;
+	map.type = MT_MEMORY;
+
+	create_mapping(&map);
+
+	map.pfn = __phys_to_pfn(__pa(_text));
+	map.virtual = (unsigned long)_text;
+	map.length = __start_rodata - _text;
+	map.type = MT_MEMORY_RX;
+
+	create_mapping(&map);
+
+	map.pfn = __phys_to_pfn(__pa(__start_rodata));
+	map.virtual = (unsigned long)__start_rodata;
+	map.length = _sdata - __start_rodata;
+	map.type = MT_MEMORY_R;
+
+	create_mapping(&map);
+
+	map.pfn = __phys_to_pfn(__pa(_sdata));
+	map.virtual = (unsigned long)_sdata;
+	map.length = bank->size - ((int)_sdata -
+		__phys_to_virt(bank_phys_start(bank)));
+	map.type = MT_MEMORY_RW;
+
+	create_mapping(&map);
+#else
+	map_memory_bank(bank);
+#endif
+}
+
 static void __init map_lowmem(void)
 {
 	struct meminfo *mi = &meminfo;
 	int i;
 
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	printk(KERN_INFO "mapping memory with restricted access\n");
+#endif
 	/* Map all the lowmem memory banks. */
 	for (i = 0; i < mi->nr_banks; i++) {
 		struct membank *bank = &mi->bank[i];

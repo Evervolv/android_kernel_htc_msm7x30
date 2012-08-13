@@ -2,6 +2,7 @@
  * arch/arm/mm/cache-l2x0.c - L210/L220 cache controller support
  *
  * Copyright (C) 2007 ARM Limited
+ * Copyright (c) 2009, 2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,6 +29,7 @@
 static void __iomem *l2x0_base;
 static DEFINE_SPINLOCK(l2x0_lock);
 static uint32_t l2x0_way_mask;	/* Bitmask of active ways */
+static uint32_t l2x0_size;
 
 static inline void cache_wait(void __iomem *reg, unsigned long mask)
 {
@@ -210,6 +212,7 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 {
 	__u32 aux;
 	__u32 cache_id;
+	__u32 way_size = 0;
 	int ways;
 	const char *type;
 
@@ -240,15 +243,65 @@ void __init l2x0_init(void __iomem *base, __u32 aux_val, __u32 aux_mask)
 		type = "L2x0 series";
 		break;
 	}
-
+	writel(aux, l2x0_base + L2X0_AUX_CTRL);
 	l2x0_way_mask = (1 << ways) - 1;
 
 	/*
-	 * Check if l2x0 controller is already enabled.
-	 * If you are booting from non-secure mode
-	 * accessing the below registers will fault.
+	 * L2 cache Size =  Way size * Number of ways
 	 */
-	if (!(readl_relaxed(l2x0_base + L2X0_CTRL) & 1)) {
+	way_size = (aux & L2X0_AUX_CTRL_WAY_SIZE_MASK) >> 17;
+	way_size = 1 << (way_size + 3);
+	l2x0_size = ways * way_size * SZ_1K;
+
+	l2x0_inv_all();
+
+	/* enable L2X0 */
+	bits = readl_relaxed(l2x0_base + L2X0_CTRL);
+	bits |= 0x01;	/* set bit 0 */
+	writel_relaxed(bits, l2x0_base + L2X0_CTRL);
+
+	switch (cache_id & L2X0_CACHE_ID_PART_MASK) {
+	case L2X0_CACHE_ID_PART_L220:
+		outer_cache.inv_range = l2x0_inv_range;
+		outer_cache.clean_range = l2x0_clean_range;
+		outer_cache.flush_range = l2x0_flush_range;
+		printk(KERN_INFO "L220 cache controller enabled\n");
+		break;
+	case L2X0_CACHE_ID_PART_L210:
+	default:
+		outer_cache.inv_range = l2x0_inv_range_atomic;
+		outer_cache.clean_range = l2x0_clean_range_atomic;
+		outer_cache.flush_range = l2x0_flush_range_atomic;
+		printk(KERN_INFO "L210 cache controller enabled\n");
+		break;
+	}
+
+	outer_cache.sync = l2x0_cache_sync;
+
+	mb();
+	printk(KERN_INFO "%s cache controller enabled\n", type);
+	printk(KERN_INFO "l2x0: %d ways, CACHE_ID 0x%08x, AUX_CTRL 0x%08x, Cache size: %d B\n",
+			ways, cache_id, aux, l2x0_size);
+}
+
+void l2x0_suspend(void)
+{
+	/* Save aux control register value */
+	aux_ctrl_save = readl_relaxed(l2x0_base + L2X0_AUX_CTRL);
+	/* Flush all cache */
+	l2x0_flush_all();
+	/* Disable the cache */
+	writel_relaxed(0, l2x0_base + L2X0_CTRL);
+
+	/* Memory barrier */
+	dmb();
+}
+
+void l2x0_resume(int collapsed)
+{
+	if (collapsed) {
+		/* Disable the cache */
+		writel_relaxed(0, l2x0_base + L2X0_CTRL);
 
 		/* l2x0 controller is disabled */
 		writel_relaxed(aux, l2x0_base + L2X0_AUX_CTRL);

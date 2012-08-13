@@ -102,6 +102,9 @@ SECTIONS
 		. = ALIGN(4);
 		*(.got)			/* Global offset table		*/
 	}
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	. = ALIGN(1<<SECTION_SHIFT);
+#endif
 
 	RO_DATA(PAGE_SIZE)
 

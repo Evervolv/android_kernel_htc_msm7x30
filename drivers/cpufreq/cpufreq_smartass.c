@@ -62,7 +62,7 @@ static unsigned int suspended;
  * The minimum amount of time to spend at a frequency before we can ramp down,
  * default is 45ms.
  */
-#define DEFAULT_DOWN_RATE_US 33000;
+#define DEFAULT_DOWN_RATE_US 20000
 static unsigned long down_rate_us;
 
 /*
@@ -97,7 +97,7 @@ static unsigned int ramp_up_step;
 /*
  * Max freqeuncy delta when ramping down. zero disables.
  */
-#define DEFAULT_MAX_RAMP_DOWN 96000
+#define DEFAULT_MAX_RAMP_DOWN 384000
 static unsigned int max_ramp_down;
 
 /*
@@ -286,10 +286,10 @@ static void cpufreq_smartass_freq_change_time_work(struct work_struct *work)
 
 		if (new_freq > policy->max)
 			new_freq = policy->max;
-
+		
 		if (new_freq < policy->min)
 			new_freq = policy->min;
-
+		
 		__cpufreq_driver_target(policy, new_freq,
 					CPUFREQ_RELATION_L);
 

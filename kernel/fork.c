@@ -367,7 +367,7 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 				goto fail_nomem;
 			charge = len;
 		}
-		tmp = kmem_cache_alloc(vm_area_cachep, GFP_KERNEL);
+		tmp = kmem_cache_zalloc(vm_area_cachep, GFP_KERNEL);
 		if (!tmp)
 			goto fail_nomem;
 		*tmp = *mpnt;
@@ -421,6 +421,7 @@ static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)
 		rb_link = &tmp->vm_rb.rb_right;
 		rb_parent = &tmp->vm_rb;
 
+		uksm_vma_add_new(tmp);
 		mm->map_count++;
 		retval = copy_page_range(mm, oldmm, mpnt);
 
@@ -1392,21 +1393,6 @@ struct task_struct * __cpuinit fork_idle(int cpu)
 
 	return task;
 }
-
-/* Notifier list called when a task struct is freed */
-static ATOMIC_NOTIFIER_HEAD(task_fork_notifier);
-
-int task_fork_register(struct notifier_block *n)
-{
-	return atomic_notifier_chain_register(&task_fork_notifier, n);
-}
-EXPORT_SYMBOL(task_fork_register);
-
-int task_fork_unregister(struct notifier_block *n)
-{
-	return atomic_notifier_chain_unregister(&task_fork_notifier, n);
-}
-EXPORT_SYMBOL(task_fork_unregister);
 
 /*
  *  Ok, this is the main fork-routine.

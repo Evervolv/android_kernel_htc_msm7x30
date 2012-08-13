@@ -389,6 +389,8 @@ void kgsl_pwrctrl_pwrrail(struct kgsl_device *device, int state)
 			&pwr->power_flags)) {
 			internal_pwr_rail_ctl(pwr->pwr_rail, 0);
 			trace_kgsl_rail(device, state);
+			if (pwr->gpu_dig)
+				regulator_disable(pwr->gpu_dig);
 			if (pwr->gpu_reg)
 				regulator_disable(pwr->gpu_reg);
 		}
@@ -397,8 +399,22 @@ void kgsl_pwrctrl_pwrrail(struct kgsl_device *device, int state)
 			&pwr->power_flags)) {
 			internal_pwr_rail_ctl(pwr->pwr_rail, 1);
 			trace_kgsl_rail(device, state);
-			if (pwr->gpu_reg)
-				regulator_enable(pwr->gpu_reg);
+			if (pwr->gpu_reg) {
+				int status = regulator_enable(pwr->gpu_reg);
+				if (status)
+					KGSL_DRV_ERR(device,
+							"core regulator_enable "
+							"failed: %d\n",
+							status);
+			}
+			if (pwr->gpu_dig) {
+				int status = regulator_enable(pwr->gpu_dig);
+				if (status)
+					KGSL_DRV_ERR(device,
+							"cx regulator_enable "
+							"failed: %d\n",
+							status);
+			}
 		}
 	}
 }
@@ -486,6 +502,13 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 	if (IS_ERR(pwr->gpu_reg))
 		pwr->gpu_reg = NULL;
 
+	if (pwr->gpu_reg) {
+		pwr->gpu_dig = regulator_get(&pdev->dev, "vdd_dig");
+		if (IS_ERR(pwr->gpu_dig))
+			pwr->gpu_dig = NULL;
+	} else
+		pwr->gpu_dig = NULL;
+
 	pwr->power_flags = 0;
 
 	pwr->nap_allowed = pdata->nap_allowed;
@@ -570,6 +593,11 @@ void kgsl_pwrctrl_close(struct kgsl_device *device)
 	if (pwr->gpu_reg) {
 		regulator_put(pwr->gpu_reg);
 		pwr->gpu_reg = NULL;
+	}
+
+	if (pwr->gpu_dig) {
+		regulator_put(pwr->gpu_dig);
+		pwr->gpu_dig = NULL;
 	}
 
 	for (i = 1; i < KGSL_MAX_CLKS; i++)
