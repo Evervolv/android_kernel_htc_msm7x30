@@ -319,27 +319,6 @@ return 0;
 
 static int cpufreq_stats_create_table_cpu(unsigned int cpu)
 {
-struct cpufreq_policy *policy;
-struct cpufreq_frequency_table *table;
-int ret = -ENODEV;
-
-policy = cpufreq_cpu_get(cpu);
-if (!policy)
-return -ENODEV;
-
-table = cpufreq_frequency_get_table(cpu);
-if (!table)
-goto out;
-
-ret = cpufreq_stats_create_table(policy, table);
-
-out:
-cpufreq_cpu_put(policy);
-return ret;
-}
-
-static int cpufreq_stats_create_table_cpu(unsigned int cpu)
-{
 	struct cpufreq_policy *policy;
 	struct cpufreq_frequency_table *table;
 	int ret = -ENODEV;
