@@ -592,7 +592,7 @@ this_smoothass->timer.data = i;
 }
 
 /* Scale up is high priority */
-up_wq = create_rt_workqueue("ksmoothass_up");
+up_wq = alloc_workqueue("ksmoothass_up", WQ_HIGHPRI | WQ_CPU_INTENSIVE, 1);
 down_wq = create_workqueue("ksmoothass_down");
 
 INIT_WORK(&freq_scale_work, cpufreq_smoothass_freq_change_time_work);
