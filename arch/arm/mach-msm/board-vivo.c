@@ -749,7 +749,7 @@ struct atmel_i2c_platform_data vivo_ts_atmel_data[] = {
 		.config_T28 = {0, 0, 3, 4, 8, 60},
 		.object_crc = {0xFF, 0xA9, 0x45},
 		.cable_config = {35, 25, 8, 16},
-		.cal_tchthr = {40, 40},
+		.call_tchthr = {40, 40},
 		.GCAF_level = {20, 24, 28, 40, 63},
 	},
 	{
@@ -780,7 +780,7 @@ struct atmel_i2c_platform_data vivo_ts_atmel_data[] = {
 		.config_T28 = {0, 0, 3, 4, 8, 60},
 		.object_crc = {0x6A, 0x55, 0x35},
 		.cable_config = {35, 25, 8, 16},
-		.cal_tchthr = {40, 40},
+		.call_tchthr = {40, 40},
 		.GCAF_level = {20, 24, 28, 40, 63},
 	},
 	{
