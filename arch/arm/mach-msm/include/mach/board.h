@@ -315,6 +315,19 @@ struct msm_adspdec_database {
 	struct dec_instance_table *dec_instance_list;
 };
 
+enum msm_mdp_hw_revision {
+	MDP_REV_20 = 1,
+	MDP_REV_22,
+	MDP_REV_30,
+	MDP_REV_303,
+	MDP_REV_31,
+	MDP_REV_40,
+	MDP_REV_41,
+	MDP_REV_42,
+	MDP_REV_43,
+	MDP_REV_44,
+};
+
 struct msm_panel_common_pdata {
 	uintptr_t hw_revision_addr;
 	int gpio;
@@ -324,14 +337,15 @@ struct msm_panel_common_pdata {
 	void (*panel_config_gpio)(int);
 	int (*vga_switch)(int select_vga);
 	int *gpio_num;
-	int mdp_core_clk_rate;
-	unsigned num_mdp_clk;
-	int *mdp_core_clk_table;
-	int (*rgb_format)(void);
-	unsigned char (*shrink_pwm)(int val);
+	u32 mdp_max_clk;
 #ifdef CONFIG_MSM_BUS_SCALING
 	struct msm_bus_scale_pdata *mdp_bus_scale_table;
 #endif
+	int mdp_rev;
+	u32 ov0_wb_size;  /* overlay0 writeback size */
+	u32 ov1_wb_size;  /* overlay1 writeback size */
+	u32 mem_hid;
+	char cont_splash_enabled;
 };
 
 struct lcdc_platform_data {
@@ -362,10 +376,13 @@ struct mipi_dsi_platform_data {
 	int (*dsi_power_save)(int on);
 };
 
+#define PANEL_NAME_MAX_LEN 50
 struct msm_fb_platform_data {
 	int (*detect_client)(const char *name);
 	int mddi_prescan;
 	int (*allow_set_offset)(void);
+	char prim_panel_name[PANEL_NAME_MAX_LEN];
+	char ext_panel_name[PANEL_NAME_MAX_LEN];
 };
 
 struct msm_hdmi_platform_data {
@@ -416,6 +433,19 @@ int __init msm_add_sdcc(unsigned int controller,
 #else
 void __init msm_clock_init(void);
 #endif
+
+struct msm_vidc_platform_data {
+	int memtype;
+	u32 enable_ion;
+	int disable_dmx;
+	int disable_fullhd;
+	u32 cp_enabled;
+#ifdef CONFIG_MSM_BUS_SCALING
+	struct msm_bus_scale_pdata *vidc_bus_client_pdata;
+#endif
+	int disable_turbo;
+        int cont_mode_dpb_count;
+};
 
 void __init msm_acpu_clock_init(struct msm_acpu_clock_platform_data *);
 

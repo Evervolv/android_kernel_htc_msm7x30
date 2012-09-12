@@ -15,6 +15,7 @@
 
 #include <linux/idr.h>
 #include <linux/wakelock.h>
+#include <linux/pm_qos_params.h>
 #include <linux/earlysuspend.h>
 
 #include "kgsl.h"
@@ -89,13 +90,14 @@ struct kgsl_functable {
 	void (*power_stats)(struct kgsl_device *device,
 		struct kgsl_power_stats *stats);
 	void (*irqctrl)(struct kgsl_device *device, int state);
-	unsigned int (*gpuid)(struct kgsl_device *device, unsigned int *chipid);
+	unsigned int (*gpuid)(struct kgsl_device *device);
 	void * (*snapshot)(struct kgsl_device *device, void *snapshot,
 		int *remain, int hang);
 	/* Optional functions - these functions are not mandatory.  The
 	   driver will check that the function pointer is not NULL before
 	   calling the hook */
-	void (*setstate) (struct kgsl_device *device, uint32_t flags);
+	void (*setstate) (struct kgsl_device *device, unsigned int context_id,
+			uint32_t flags);
 	int (*drawctxt_create) (struct kgsl_device *device,
 		struct kgsl_pagetable *pagetable, struct kgsl_context *context,
 		uint32_t flags);
@@ -184,9 +186,16 @@ struct kgsl_device {
 	struct wake_lock idle_wakelock;
 	struct kgsl_pwrscale pwrscale;
 	struct kobject pwrscale_kobj;
+	struct pm_qos_request_list pm_qos_req_dma;
 	struct work_struct ts_expired_ws;
 	struct list_head events;
 	s64 on_time;
+
+	/* page fault debugging parameters */
+	struct work_struct print_fault_ib;
+	unsigned int page_fault_ptbase;
+	unsigned int page_fault_ib1;
+	unsigned int page_fault_rptr;
 };
 
 struct kgsl_context {
@@ -258,10 +267,9 @@ static inline int kgsl_idle(struct kgsl_device *device, unsigned int timeout)
 	return device->ftbl->idle(device, timeout);
 }
 
-static inline unsigned int kgsl_gpuid(struct kgsl_device *device,
-	unsigned int *chipid)
+static inline unsigned int kgsl_gpuid(struct kgsl_device *device)
 {
-	return device->ftbl->gpuid(device, chipid);
+	return device->ftbl->gpuid(device);
 }
 
 static inline int kgsl_create_device_sysfs_files(struct device *root,

@@ -20,4 +20,10 @@ enum ion_memory_types {
 	ION_SMI_TYPE,
 };
 
+enum ion_permission_type {
+	IPT_TYPE_MM_CARVEOUT = 0,
+	IPT_TYPE_MFC_SHAREDMEM = 1,
+	IPT_TYPE_MDP_WRITEBACK = 2,
+};
+
 #endif

@@ -9,14 +9,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
- * 02110-1301, USA.
- *
  */
 
-#include "vidc_type.h"
+#include <media/msm/vidc_type.h>
 #include "vcd_ddl_utils.h"
 #include "vcd_ddl.h"
 
@@ -365,6 +360,11 @@ static u32 ddl_handle_core_recoverable_errors(struct ddl_context \
 	case ACTIVE_SPS_NOT_PRESENT:
 	case ACTIVE_PPS_NOT_PRESENT:
 		{
+			if (ddl->codec_data.decoder.idr_only_decoding) {
+				DBG("Consider warnings as errors in idr mode");
+				ddl_client_fatal_cb(ddl_context);
+				return true;
+			}
 			vcd_status = VCD_ERR_BITSTREAM_ERR;
 			break;
 		}
@@ -555,11 +555,23 @@ u32 ddl_handle_seqhdr_fail_error(struct ddl_context *ddl_context)
 		DDLCLIENT_STATE_IS(ddl, DDL_CLIENT_WAIT_FOR_INITCODECDONE)) {
 		switch (ddl_context->cmd_err_status) {
 		case UNSUPPORTED_FEATURE_IN_PROFILE:
-		case RESOLUTION_NOT_SUPPORTED:
 		case HEADER_NOT_FOUND:
 		case INVALID_SPS_ID:
 		case INVALID_PPS_ID:
+		case RESOLUTION_NOT_SUPPORTED:
+		case PROFILE_UNKOWN:
 			ERR("SEQ-HDR-FAILED!!!");
+			if ((ddl_context->cmd_err_status ==
+				 RESOLUTION_NOT_SUPPORTED) &&
+				(decoder->codec.codec == VCD_CODEC_H264 ||
+				decoder->codec.codec == VCD_CODEC_H263 ||
+				decoder->codec.codec == VCD_CODEC_MPEG4 ||
+				decoder->codec.codec == VCD_CODEC_VC1_RCV ||
+				decoder->codec.codec == VCD_CODEC_VC1)) {
+				ddl_client_fatal_cb(ddl_context);
+				status = true;
+				break;
+			}
 			if (decoder->header_in_start) {
 				decoder->header_in_start = false;
 				ddl_context->ddl_callback(VCD_EVT_RESP_START,

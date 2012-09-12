@@ -12,8 +12,6 @@
  */
 #include <linux/uaccess.h>
 
-#include <mach/internal_power_rail.h>
-
 #include "kgsl.h"
 #include "kgsl_cffdump.h"
 #include "kgsl_sharedmem.h"
@@ -153,7 +151,6 @@ static struct z180_device device_2d0 = {
 		.pwrctrl = {
 			.regulator_name = "fs_gfx2d0",
 			.irq_name = KGSL_2D0_IRQ,
-			.pwr_rail = PWR_RAIL_GRP_2D_CLK,
 		},
 		.mutex = __MUTEX_INITIALIZER(device_2d0.dev.mutex),
 		.state = KGSL_STATE_INIT,
@@ -446,12 +443,13 @@ z180_cmdstream_issueibcmds(struct kgsl_device_private *dev_priv,
 	    (ctrl & KGSL_CONTEXT_CTX_SWITCH)) {
 		KGSL_CMD_INFO(device, "context switch %d -> %d\n",
 			context->id, z180_dev->ringbuffer.prevctx);
-		kgsl_mmu_setstate(device, pagetable);
+		kgsl_mmu_setstate(device, pagetable,
+				0);
 		cnt = PACKETSIZE_STATESTREAM;
 		ofs = 0;
 	}
-	kgsl_setstate(device, kgsl_mmu_pt_get_flags(device->mmu.hwpagetable,
-						    device->id));
+	kgsl_setstate(device, 0, kgsl_mmu_pt_get_flags(device->mmu.hwpagetable,
+			device->id));
 
 	result = wait_event_interruptible_timeout(device->wait_queue,
 				  room_in_rb(z180_dev),
@@ -866,7 +864,8 @@ z180_drawctxt_destroy(struct kgsl_device *device,
 	if (z180_dev->ringbuffer.prevctx == context->id) {
 		z180_dev->ringbuffer.prevctx = Z180_INVALID_CONTEXT;
 		device->mmu.hwpagetable = device->mmu.defaultpagetable;
-		kgsl_setstate(device, KGSL_MMUFLAGS_PTUPDATE);
+		kgsl_setstate(device, 0,
+				KGSL_MMUFLAGS_PTUPDATE);
 	}
 }
 
@@ -901,11 +900,8 @@ static void z180_irqctrl(struct kgsl_device *device, int state)
 	}
 }
 
-static unsigned int z180_gpuid(struct kgsl_device *device, unsigned int *chipid)
+static unsigned int z180_gpuid(struct kgsl_device *device)
 {
-	if (chipid != NULL)
-		*chipid = 0;
-
 	/* Standard KGSL gpuid format:
 	 * top word is 0x0002 for 2D or 0x0003 for 3D
 	 * Bottom word is core specific identifer

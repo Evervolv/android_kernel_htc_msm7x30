@@ -408,10 +408,11 @@ extern int register_display_notifier(struct notifier_block *nb);
 extern int display_notifier_call_chain(unsigned long val, void *data);
 
 #define display_notifier(fn, pri) {                     \
-	static struct notifier_block fn##_nb =          \
-	{ .notifier_call = fn, .priority = pri };       \
-	register_display_notifier(&fn##_nb);		\
+       static struct notifier_block fn##_nb =          \
+       { .notifier_call = fn, .priority = pri };       \
+       register_display_notifier(&fn##_nb);            \
 }
+
 
 #if (defined(CONFIG_USB_FUNCTION_PROJECTOR) || defined(CONFIG_USB_ANDROID_PROJECTOR))
 /* For USB Projector to quick access the frame buffer info */
