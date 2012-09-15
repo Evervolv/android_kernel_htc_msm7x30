@@ -151,14 +151,21 @@ struct kgsl_version {
 #define KGSL_2D1_REG_MEMORY	"kgsl_2d1_reg_memory"
 #define KGSL_2D1_IRQ		"kgsl_2d1_irq"
 
+struct kgsl_grp_clk_name {
+	const char *clk;
+	const char *pclk;
+};
+
 struct kgsl_device_platform_data {
 	struct kgsl_pwrlevel pwrlevel[KGSL_MAX_PWRLEVELS];
 	int init_level;
 	int num_levels;
 	int (*set_grp_async)(void);
 	unsigned int idle_timeout;
+	bool strtstp_sleepwake;
 	unsigned int nap_allowed;
-	unsigned int clk_map;
+	struct kgsl_grp_clk_name clk;
+	struct kgsl_grp_clk_name imem_clk_name;
 	unsigned int idle_needed;
 	struct msm_bus_scale_pdata *bus_scale_table;
 	const char *iommu_user_ctx_name;

@@ -47,15 +47,19 @@ struct kgsl_pwrctrl {
 	int thermal_pwrlevel;
 	unsigned int num_pwrlevels;
 	unsigned int interval_timeout;
+	bool strtstp_sleepwake;
 	struct regulator *gpu_reg;
+	struct regulator *gpu_dig;
 	uint32_t pcl;
 	unsigned int nap_allowed;
 	unsigned int idle_needed;
 	const char *regulator_name;
 	const char *irq_name;
+	const char *src_clk_name;
 	s64 time;
 	struct kgsl_busy busy;
 	unsigned int restore_slumber;
+	unsigned int pwr_rail;
 };
 
 void kgsl_pwrctrl_irq(struct kgsl_device *device, int state);

@@ -20,6 +20,17 @@
 #include <linux/err.h>
 #include <mach/msm_reqs.h>
 
+struct pm_qos_request_list {
+        struct list_head list;
+        union {
+                s32 value;
+                s32 usec;
+                s32 kbps;
+        };
+        int pm_qos_class;
+};
+
+
 struct pm_qos_object {
         struct pm_qos_request_list requests;
         struct blocking_notifier_head *notifiers;

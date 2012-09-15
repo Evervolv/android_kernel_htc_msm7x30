@@ -182,8 +182,14 @@ static struct kgsl_device_platform_data kgsl_3d0_pdata = {
 	.set_grp_async = set_grp3d_async,
 	.idle_timeout = HZ/20,
 	.nap_allowed = true,
-	.clk_map = KGSL_CLK_SRC | KGSL_CLK_CORE |
-		KGSL_CLK_IFACE | KGSL_CLK_MEM,
+	.clk = {
+		.clk = "grp_clk",
+		.pclk = "grp_pclk",
+	},
+	.imem_clk_name = {
+		.clk = "imem_clk",
+		.pclk = NULL,
+	},
 };
 
 static struct platform_device msm_kgsl_3d0 = {
@@ -225,7 +231,10 @@ static struct kgsl_device_platform_data kgsl_2d0_pdata = {
 	.set_grp_async = NULL,
 	.idle_timeout = HZ/10,
 	.nap_allowed = true,
-	.clk_map = KGSL_CLK_CORE | KGSL_CLK_IFACE,
+	.clk = {
+		.clk = "grp_2d_clk",
+		.pclk = "grp_2d_pclk",
+	},
 };
 
 static struct platform_device msm_kgsl_2d0 = {

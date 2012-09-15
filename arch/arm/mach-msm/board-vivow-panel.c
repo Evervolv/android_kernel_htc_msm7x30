@@ -24,13 +24,13 @@
 #include <linux/err.h>
 #include <linux/gpio.h>
 
-#include <mach/msm_panel.h>
 #include <asm/io.h>
 #include <asm/mach-types.h>
 #include <mach/msm_fb.h>
 #include <mach/msm_iomap.h>
 #include <mach/vreg.h>
 #include <mach/panel_id.h>
+#include "../../../drivers/video/msm/mdp_hw.h"
 
 #include "pmic.h"
 #include "board-vivow.h"
@@ -70,6 +70,7 @@ extern int panel_type;
         .len = sizeof((u8 []){__VA_ARGS__}) / sizeof(u8)        \
 }
 static struct clk *axi_clk;
+static int color_enhancement = 0;
 
 static struct vreg *V_LCMIO_1V8, *V_LCM_2V85;
 static struct cabc_t {
@@ -400,6 +401,20 @@ struct mdp_reg vivow_mdp_init_color[] = {
 
 enum led_brightness vivow_brightness_value = DEFAULT_BRIGHTNESS;// multiple definition of `brightness_value' in board-glacier-panel.c
 
+void vivow_mdp_color_enhancement(struct mdp_device *mdp_dev)
+{
+	struct mdp_info *mdp = container_of(mdp_dev, struct mdp_info, mdp_dev);
+	mdp->write_regs(mdp, vivow_mdp_init_color, ARRAY_SIZE(vivow_mdp_init_color));
+}
+
+static struct msm_mdp_platform_data mdp_pdata = {
+	.overrides = MSM_MDP4_MDDI_DMA_SWITCH
+#ifdef CONFIG_OVERLAY_FORCE_UPDATE
+	| MSM_MDP_FORCE_UPDATE
+#endif
+	,
+};
+
 static void
 do_renesas_cmd(struct msm_mddi_client_data *client_data, struct mddi_cmd *cmd_table, ssize_t size)
 {
@@ -498,6 +513,7 @@ static void vivow_set_brightness(struct led_classdev *led_cdev,
 static enum led_brightness
 vivow_get_brightness(struct led_classdev *led_cdev)
 {
+	/*FIXME:workaround for NOVATEK driver IC*/
 #if 0
 	struct msm_mddi_client_data *client = cabc.client_data;
 	return client->remote_read(client, 0x5100);
@@ -912,8 +928,14 @@ vivow_panel_unblank(struct msm_mddi_bridge_platform_data *bridge_data,
 			struct msm_mddi_client_data *client_data)
 {
 	B(KERN_DEBUG "%s(%d)\n", __func__, __LINE__);
+
+
 	client_data->auto_hibernate(client_data, 0);
 	if(panel_type == PANEL_VIVOW_HITACHI) {
+		if (color_enhancement == 0) {
+			vivow_mdp_color_enhancement(mdp_pdata.mdp_dev);
+			color_enhancement = 1;
+		}
 		client_data->remote_write(client_data, 0x0, 0x11);
 		hr_msleep(125);
 		vivow_backlight_switch(LED_FULL);
@@ -1077,40 +1099,21 @@ static struct platform_driver vivow_backlight_driver = {
 	},
 };
 
-static struct msm_mdp_platform_data mdp_pdata = {
-#ifdef CONFIG_MDP4_HW_VSYNC
-	.xres = 480,
-	.yres = 800,
-	.back_porch = 2,
-	.front_porch = 42,
-	.pulse_width = 2,
-#else
-	.overrides = MSM_MDP4_MDDI_DMA_SWITCH,
-#endif
-};
-
-static struct msm_mdp_platform_data mdp_pdata_sony = {
-#ifdef CONFIG_MDP4_HW_VSYNC
-	.xres = 480,
-	.yres = 800,
-	.back_porch = 4,
-	.front_porch = 2,
-	.pulse_width = 4,
-#else
-	.overrides = MSM_MDP4_MDDI_DMA_SWITCH,
-#endif
-};
 
 int __init vivow_init_panel(unsigned int sys_rev)
 {
 	int rc;
 
 	B(KERN_INFO "%s(%d): enter. panel_type 0x%08x\n", __func__, __LINE__, panel_type);
-	if (panel_type == PANEL_VIVOW_HITACHI)
-		msm_device_mdp.dev.platform_data = &mdp_pdata;
-	else
-		msm_device_mdp.dev.platform_data = &mdp_pdata_sony;
 
+	//use dmap for hitachi panel
+	if(panel_type == PANEL_VIVOW_HITACHI)
+	{
+		mdp_pdata.overrides = 0;
+		pr_err("%s: mdp_pdata.overrides = 0\n", __func__);
+	}
+
+	msm_device_mdp.dev.platform_data = &mdp_pdata;
 	rc = platform_device_register(&msm_device_mdp);
 	if (rc)
 		return rc;
