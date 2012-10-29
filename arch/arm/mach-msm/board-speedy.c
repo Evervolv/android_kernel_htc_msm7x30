@@ -677,7 +677,7 @@ struct atmel_i2c_platform_data speedy_ts_atmel_data[] = {
 		.config_T27 = {0, 0, 0, 0, 0, 0, 0},
 		.config_T28 = {0, 0, 3, 4, 8, 60},
 		.object_crc = {0x2E, 0x8A, 0x5C},
-		.cal_tchthr = {52, 52},
+		.call_tchthr = {52, 52},
 		.cable_config = {34, 24, 8, 16},
 	},
 	{
@@ -2397,6 +2397,16 @@ static void speedy_reset(void)
 	gpio_set_value(SPEEDY_GPIO_PS_HOLD, 0);
 }
 
+#ifdef CONFIG_MDP4_HW_VSYNC
+static void speedy_te_gpio_config(void)
+{
+	uint32_t te_gpio_table [] = {
+		PCOM_GPIO_CFG(30, 1, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA),
+	};
+	config_gpio_table(te_gpio_table, ARRAY_SIZE(te_gpio_table));
+}
+#endif
+
 static void __init speedy_init(void)
 {
 	int rc = 0;
@@ -2525,6 +2535,9 @@ static void __init speedy_init(void)
 #endif
 	speedy_audio_init();
 	speedy_init_keypad();
+#ifdef CONFIG_MDP4_HW_VSYNC
+	speedy_te_gpio_config();
+#endif
 	speedy_wifi_init();
 	speedy_init_panel(system_rev);
 
