@@ -465,6 +465,12 @@ obj-$(CONFIG_MACH_GLACIER) += board-glacier-keypad.o board-glacier-audio.o
 obj-$(CONFIG_MACH_GLACIER) += board-glacier-mmc.o board-glacier-wifi.o
 obj-$(CONFIG_MACH_GLACIER) += display/glacier-panel.o
 obj-$(CONFIG_MACH_GLACIER) += htc_bdaddress.o
+obj-$(CONFIG_MACH_SPEEDY) += board-speedy.o 
+obj-$(CONFIG_MACH_SPEEDY) += board-speedy-microp.o board-speedy-rfkill.o
+obj-$(CONFIG_MACH_SPEEDY) += board-speedy-keypad.o board-speedy-audio.o
+obj-$(CONFIG_MACH_SPEEDY) += board-speedy-mmc.o board-speedy-wifi.o
+obj-$(CONFIG_MACH_SPEEDY) += display/speedy-panel.o
+obj-$(CONFIG_MACH_SPEEDY) += htc_bdaddress.o
 # Those panels need SPI_DISPLAY
 ifeq ($(CONFIG_SPI_DISPLAY),y)
 	obj-$(CONFIG_ARCH_MSM7X30) += display/panel-samsungwvga-tl2796a.o display/panel-samsungwvga-s6e63m0.o 

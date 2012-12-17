@@ -511,6 +511,13 @@ config MACH_SPADE
        help
          Support for the Qualcomm Spade board.
 
+config MACH_SPEEDY
+       depends on ARCH_MSM7X30
+       default n
+       bool "Speedy"
+       help
+         Support for the Qualcomm Speedy board.
+
 config MACH_SAGA
        depends on ARCH_MSM7X30
        default n
