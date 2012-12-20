@@ -562,6 +562,11 @@ config FLASHLIGHT_TPS61310
 	help
 	  Say Y here to enable the TI TPS61310 flashlight
 
+config FLASHLIGHT_ADP1650
+	tristate "flashlight ADP1650"
+	help
+	  Say Y here to enable the ADP1650 flashlight
+
 config FLASHLIGHT_AAT1271
 	tristate "flashlight AAT1271"
 	help
