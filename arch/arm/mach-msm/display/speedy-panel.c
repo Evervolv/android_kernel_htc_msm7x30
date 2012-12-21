@@ -695,7 +695,7 @@ static struct platform_driver speedy_backlight_driver = {
 };
 
 static struct msm_mdp_platform_data mdp_pdata = {
-	.overrides = 0,
+	.overrides = MSM_MDP4_MDDI_DMA_SWITCH | MSM_MDP_FORCE_UPDATE,
 	.color_format = MSM_MDP_OUT_IF_FMT_RGB888,
 #ifdef CONFIG_MDP4_HW_VSYNC
        .xres = 480,
@@ -703,18 +703,6 @@ static struct msm_mdp_platform_data mdp_pdata = {
        .back_porch = 20,
        .front_porch = 20,
        .pulse_width = 40,
-#endif
-};
-
-static struct msm_mdp_platform_data mdp_pdata_sony = {
-	.overrides = MSM_MDP_PANEL_FLIP_UD | MSM_MDP_PANEL_FLIP_LR,
-	.color_format = MSM_MDP_OUT_IF_FMT_RGB888,
-#ifdef CONFIG_MDP4_HW_VSYNC
-       .xres = 480,
-       .yres = 800,
-       .back_porch = 4,
-       .front_porch = 2,
-       .pulse_width = 4,
 #endif
 };
 
