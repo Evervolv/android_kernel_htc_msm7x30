@@ -3020,7 +3020,7 @@ static void __init speedy_init(void)
 #ifdef CONFIG_MDP4_HW_VSYNC
 	speedy_te_gpio_config();
 #endif
-	speedy_init_panel(system_rev);
+	speedy_init_panel();
 	speedy_wifi_init();
 }
 

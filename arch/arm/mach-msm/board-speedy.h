@@ -64,6 +64,7 @@
 		{ {1,  0, 0}, { 0,  0,  1}, {0, 1, 0} }  \
 					}
 
+#define SPEEDY_MDDI_TE			(30)
 #define SPEEDY_LCD_RSTz			(126)
 /* BT */
 #define SPEEDY_GPIO_BT_UART1_RTS	(134)

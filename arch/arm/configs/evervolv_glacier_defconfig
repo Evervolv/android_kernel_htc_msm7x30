@@ -1246,10 +1246,11 @@ CONFIG_WLAN=y
 # CONFIG_B43LEGACY_DMA_AND_PIO_MODE is not set
 # CONFIG_B43LEGACY_DMA_MODE is not set
 # CONFIG_B43LEGACY_PIO_MODE is not set
-CONFIG_BCM4329=m
-CONFIG_BCM4329_FW_PATH="/system/etc/firmware/fw_bcm4329.bin"
-CONFIG_BCM4329_NVRAM_PATH="/proc/calibration"
-# CONFIG_BCMDHD is not set
+# CONFIG_BCM4329 is not set
+CONFIG_BCMDHD=m
+CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcm4329.bin"
+CONFIG_BCMDHD_NVRAM_PATH="/proc/calibration"
+CONFIG_BCMDHD_P2P_INTERFACE=y
 # CONFIG_HOSTAP is not set
 # CONFIG_IWM is not set
 # CONFIG_LIBERTAS is not set
