@@ -142,5 +142,5 @@ int __init speedy_init_keypad(void);
 int __init speedy_wifi_init(void);
 void __init speedy_microp_init(void);
 
-int __init speedy_init_panel(unsigned int sys_rev);
+int __init speedy_init_panel(void);
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_SPEEDY_H */
