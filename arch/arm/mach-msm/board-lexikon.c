@@ -2450,6 +2450,16 @@ static void lexikon_reset(void)
 	gpio_set_value(LEXIKON_GPIO_PS_HOLD, 0);
 }
 
+#ifdef CONFIG_MDP4_HW_VSYNC
+static void lexikon_te_gpio_config(void)
+{
+	uint32_t te_gpio_table [] = {
+		PCOM_GPIO_CFG(30, 1, GPIO_INPUT, GPIO_PULL_DOWN, GPIO_2MA),
+	};
+	config_gpio_table(te_gpio_table, ARRAY_SIZE(te_gpio_table));
+}
+#endif
+
 static void __init lexikon_init(void)
 {
 	int rc = 0;
@@ -2584,6 +2594,9 @@ static void __init lexikon_init(void)
 #endif
 	lexikon_audio_init();
 	lexikon_init_keypad();
+#ifdef CONFIG_MDP4_HW_VSYNC
+	lexikon_te_gpio_config();
+#endif
 	lexikon_wifi_init();
 	lexikon_init_panel(system_rev);
 }
