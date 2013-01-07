@@ -2440,6 +2440,34 @@ static int __capella_cm3602_power(int on)
 	return rc;
 }
 
+static int __isl29028_power(int on)
+{
+	int rc;
+	struct vreg *vreg = vreg_get(0, "gp7");
+	if (!vreg) {
+		printk(KERN_ERR "%s: vreg error\n", __func__);
+		return -EIO;
+	}
+	rc = vreg_set_level(vreg, 2850);
+
+	printk(KERN_DEBUG "%s: Turn the isl29028 power %s\n",
+		__func__, (on) ? "on" : "off");
+
+	if (on) {
+		config_speedy_proximity_gpios(1);
+		rc = vreg_enable(vreg);
+		if (rc < 0)
+			printk(KERN_ERR "%s: vreg enable failed\n", __func__);
+	} else {
+		rc = vreg_disable(vreg);
+		if (rc < 0)
+			printk(KERN_ERR "%s: vreg disable failed\n", __func__);
+		config_speedy_proximity_gpios(0);
+	}
+
+	return rc;
+}
+
 static DEFINE_MUTEX(capella_cm3602_lock);
 static int als_power_control;
 
@@ -2465,6 +2493,11 @@ static int capella_cm3602_power(int pwr_device, uint8_t enable)
 	return ret;
 }
 
+static int isl29028_power(int pwr_device, uint8_t enable)
+{
+	return 0;
+}
+
 static struct capella_cm3602_platform_data capella_cm3602_pdata = {
 	.power = capella_cm3602_power,
 	.p_en = PM8058_GPIO_PM_TO_SYS(SPEEDY_GPIO_PS_EN),
@@ -2478,6 +2511,16 @@ static struct platform_device capella_cm3602 = {
 	.dev = {
 		.platform_data = &capella_cm3602_pdata
 	}
+};
+
+static struct isl29028_platform_data isl29028_pdata = {
+	.intr = PM8058_GPIO_PM_TO_SYS(SPEEDY_GPIO_PS_INT_N),
+	.levels = { 12, 32, 54, 173, 500, 640,
+			1097, 1564, 2030, 4095},
+	.golden_adc = 0x320,
+	.power = isl29028_power,
+	.lt = 0x20,
+	.ht = 0x30,
 };
 
 static struct platform_device *proximity_device[] __initdata = {
@@ -2657,6 +2700,11 @@ static struct i2c_board_info i2c_Sensors_devices_XB[] = {
 		I2C_BOARD_INFO(AKM8975_I2C_NAME, 0x1A >> 1),
 		.platform_data = &compass_platform_data,
 		.irq = MSM_GPIO_TO_INT(PM8058_GPIO_PM_TO_SYS(SPEEDY_GPIO_COMPASS_INT_N_XB)),
+	},
+	{
+		I2C_BOARD_INFO(ISL29028_I2C_NAME, 0x8A >> 1),
+		.platform_data = &isl29028_pdata,
+		.irq = MSM_GPIO_TO_INT(PM8058_GPIO_PM_TO_SYS(SPEEDY_GPIO_PS_INT_N)),
 	},
 };
 
@@ -3020,8 +3068,12 @@ static void __init speedy_init(void)
 #ifdef CONFIG_MDP4_HW_VSYNC
 	speedy_te_gpio_config();
 #endif
-	speedy_init_panel();
 	speedy_wifi_init();
+	speedy_init_panel(system_rev);
+
+	rc = __isl29028_power(1);
+	if (rc < 0)
+		printk(KERN_INFO "Power on ISL29028 fail!\n");
 }
 
 static unsigned pmem_sf_size = MSM_PMEM_SF_SIZE;

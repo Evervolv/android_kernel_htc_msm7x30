@@ -32,18 +32,34 @@
 #define MSM_LINUX_SIZE2		0x0BA00000
 
 #define MSM_GPU_MEM_BASE	0x00100000
-#define MSM_GPU_MEM_SIZE	0x00300000
+#define MSM_GPU_MEM_SIZE	0x003f0000
 
 #define MSM_RAM_CONSOLE_BASE	0x00500000
 #define MSM_RAM_CONSOLE_SIZE    0x000F0000
 
+/* CIQ */
+#ifdef CONFIG_BUILD_CIQ
+#define MSM_PMEM_CIQ_BASE   MSM_RAM_CONSOLE_BASE + MSM_RAM_CONSOLE_SIZE
+#define MSM_PMEM_CIQ_SIZE   SZ_64K
+#define MSM_PMEM_CIQ1_BASE  MSM_PMEM_CIQ_BASE
+#define MSM_PMEM_CIQ1_SIZE  MSM_PMEM_CIQ_SIZE
+#define MSM_PMEM_CIQ2_BASE  MSM_PMEM_CIQ_BASE
+#define MSM_PMEM_CIQ2_SIZE  MSM_PMEM_CIQ_SIZE
+#define MSM_PMEM_CIQ3_BASE  MSM_PMEM_CIQ_BASE
+#define MSM_PMEM_CIQ3_SIZE  MSM_PMEM_CIQ_SIZE
+#endif
+
+#define MSM_PMEM_ADSP_BASE  	0x2BA00000
+#define MSM_PMEM_ADSP_SIZE	0x01D00000
+
 #define PMEM_KERNEL_EBI1_BASE   0x2D700000
 #define PMEM_KERNEL_EBI1_SIZE   0x00600000
 
-#define MSM_PMEM_ADSP_SIZE	0x01D00000
-
+//#define MSM_PMEM_MDP_BASE	0x2DD00000
+//#define MSM_PMEM_MDP_SIZE	0x01E00000
 #define MSM_PMEM_SF_SIZE	0x01E00000
 
+#define MSM_FB_BASE		0x2FB00000
 #define MSM_FB_SIZE		0x00500000
 
 #define SPEEDY_GPIO_WIFI_IRQ		(147)
@@ -64,8 +80,8 @@
 		{ {1,  0, 0}, { 0,  0,  1}, {0, 1, 0} }  \
 					}
 
-#define SPEEDY_MDDI_TE			(30)
 #define SPEEDY_LCD_RSTz			(126)
+
 /* BT */
 #define SPEEDY_GPIO_BT_UART1_RTS	(134)
 #define SPEEDY_GPIO_BT_UART1_CTS	(135)
@@ -136,11 +152,11 @@ extern struct platform_device msm_device_mdp;
 extern struct platform_device msm_device_mddi0;
 extern int panel_type;
 
-int speedy_init_mmc(unsigned int sys_rev);
+int __init speedy_init_mmc(unsigned int system_rev);
 void __init speedy_audio_init(void);
 int __init speedy_init_keypad(void);
 int __init speedy_wifi_init(void);
 void __init speedy_microp_init(void);
 
-int __init speedy_init_panel(void);
+int __init speedy_init_panel(unsigned int system_rev);
 #endif /* __ARCH_ARM_MACH_MSM_BOARD_SPEEDY_H */

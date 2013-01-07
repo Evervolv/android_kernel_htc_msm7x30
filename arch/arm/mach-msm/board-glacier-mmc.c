@@ -294,7 +294,7 @@ int glacier_wifi_reset(int on)
 	return 0;
 }
 
-int __init glacier_init_mmc(unsigned int sys_rev)
+int __init glacier_init_mmc(unsigned int system_rev)
 {
 	uint32_t id;
 	wifi_status_cb = NULL;
