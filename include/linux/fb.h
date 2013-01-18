@@ -274,7 +274,11 @@ struct fb_var_screeninfo {
 	__u32 sync;			/* see FB_SYNC_*		*/
 	__u32 vmode;			/* see FB_VMODE_*		*/
 	__u32 rotate;			/* angle we rotate counter clockwise */
+<<<<<<< HEAD
 	__u32 colorspace;               /* colorspace for FOURCC-based modes */
+=======
+	__u32 colorspace;		/* colorspace for FOURCC-based modes */
+>>>>>>> 2618f97... fb: fix reserved usage for 4.2
 	__u32 reserved[4];		/* Reserved for future compatibility */
 };
 
