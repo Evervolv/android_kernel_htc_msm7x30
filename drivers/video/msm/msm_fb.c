@@ -62,6 +62,11 @@ static void msmfb_resume(struct msmfb_info *msmfb);
 #define BLIT_TIME 0x4
 #define SHOW_UPDATES 0x8
 
+#ifdef CONFIG_PANEL_SELF_REFRESH
+extern struct panel_icm_info *panel_icm;
+extern wait_queue_head_t panel_update_wait_queue;
+#endif
+
 #define DLOG(mask, fmt, args...) \
 do { \
 	if ((msmfb_debug_mask | SUSPEND_RESUME) & mask) \
