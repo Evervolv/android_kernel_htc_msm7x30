@@ -334,13 +334,13 @@ CHECK		= sparse
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
 MODFLAGS	= -DMODULE -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a -mfpu=vfpv3 \
-			  -ftree-vectorize -mfloat-abi=hard -fsingle-precision-constant
+			  -ftree-vectorize -fsingle-precision-constant -mfloat-abi=softfp
 
 CFLAGS_MODULE   = $(MODFLAGS)
 AFLAGS_MODULE   = $(MODFLAGS)
 LDFLAGS_MODULE  = -T $(srctree)/scripts/module-common.lds
 CFLAGS_KERNEL	= -mcpu=cortex-a8 -mtune=cortex-a8 -march=armv7-a -mfpu=vfpv3 \
-				  -ftree-vectorize -mfloat-abi=hard -fsingle-precision-constant
+				  -ftree-vectorize -fsingle-precision-constant -mfloat-abi=softfp
 
 AFLAGS_KERNEL	= $(CFLAGS_KERNEL)
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
