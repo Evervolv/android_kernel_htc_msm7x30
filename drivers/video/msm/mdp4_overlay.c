@@ -89,6 +89,11 @@
 #define OVERLAY_UPDATE_SCREEN_EN	1
 #define OVERLAY_UPDATE_SCREEN_DIS	0
 
+#ifdef CONFIG_PANEL_SELF_REFRESH
+extern struct panel_icm_info *panel_icm;
+extern wait_queue_head_t panel_update_wait_queue;
+#endif
+
 static int z_order_change = 0;
 
 struct mdp4_overlay_ctrl {
